@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur de clé Fernet</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chargez la bibliothèque fernet-js depuis un CDN ou localement -->
+    <script src="https://cdn.jsdelivr.net/npm/fernet-js@1.0.0/dist/fernet.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Générateur de clé Fernet</h1>
+        <p>Cliquez sur le bouton ci-dessous pour générer une clé de chiffrement Fernet.</p>
+
+        <button id="generate-key-btn">Générer une clé</button>
+
+        <div class="result">
+            <h2>Votre clé Fernet :</h2>
+            <textarea id="key-output" rows="4" readonly></textarea>
+            <button id="copy-btn">Copier la clé</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
