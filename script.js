@@ -30,6 +30,9 @@ async function initializePyodide() {
         loadingDiv.style.display = 'none';
         contentDiv.style.display = 'block';
 
+        // Attacher les écouteurs d'événements APRÈS que tout soit chargé
+        setupEventListeners();
+
     } catch (error) {
         console.error("Erreur lors du chargement de Pyodide :", error);
         loadingDiv.innerHTML = `
@@ -48,7 +51,6 @@ async function loadPythonModule() {
         const pythonCode = await response.text();
         await pyodide.runPythonAsync(pythonCode);
         pythonModuleLoaded = true;
-        console.log("Module Python chargé");
     } catch (error) {
         console.error("Erreur lors du chargement du module Python :", error);
     }
@@ -90,7 +92,7 @@ async function runPythonFunction(functionName, ...args) {
 // Masquer la clé dans l'UI
 function maskKey(key) {
     if (!key || key.length === 0) return "";
-    return "•".repeat(20); // Affiche 20 points pour masquer la clé
+    return "•".repeat(20);
 }
 
 // Mettre à jour l'affichage des clés masquées
@@ -273,8 +275,8 @@ function setupTabs() {
     });
 }
 
-// Evenements
-document.addEventListener('DOMContentLoaded', () => {
+// Configurer tous les écouteurs d'événements
+function setupEventListeners() {
     setupTabs();
 
     document.getElementById('generate-key-btn').addEventListener('click', generateKey);
@@ -304,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(decryptTimeout);
         decryptTimeout = setTimeout(decryptText, 500);
     });
-});
+}
 
 // Initialiser au chargement
 initializePyodide();
