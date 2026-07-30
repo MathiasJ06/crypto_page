@@ -37,6 +37,12 @@ async function initializePyodide() {
     }
 }
 
+// Charger le script Python depuis un fichier
+async function loadPythonScript() {
+    const response = await fetch('generate_fernet_key.py');
+    return await response.text();
+}
+
 // Générer une clé Fernet
 async function generateKey() {
     if (!isPyodideReady) {
@@ -45,16 +51,13 @@ async function generateKey() {
     }
 
     const keyOutput = document.getElementById('key-output');
-    keyOutput.value = "Génération en cours..."; 
+    keyOutput.value = "Génération en cours...";
 
     try {
-        // Exécuter du code Python pour générer une clé Fernet
-        const pythonCode = `
-from cryptography.fernet import Fernet
-key = Fernet.generate_key()
-key.decode('utf-8')  # Convertir en chaîne pour JavaScript
-        `;
+        // Charger le script Python depuis le fichier dédié
+        const pythonCode = await loadPythonScript();
 
+        // Exécuter le code Python pour générer une clé Fernet
         const key = await pyodide.runPythonAsync(pythonCode);
         keyOutput.value = key;
     } catch (error) {
