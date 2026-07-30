@@ -164,51 +164,67 @@ async function generateRSAKeys() {
     generateBtn.textContent = "Génération en cours...";
 
     try {
+        console.log("Début de la génération RSA...");
+        
+        // Vérifier que le package cryptography est chargé
+        const checkCrypto = await runPythonCode(`
+import sys
+'cryptography' in sys.modules
+`);
+        console.log("Package cryptography chargé :", checkCrypto);
+        
         // Générer la paire de clés RSA en une seule opération
         const pythonCode = `
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
-# Générer la paire de clés
+print("Génération de la clé privée...")
 private_key = rsa.generate_private_key(
     public_exponent=65537,
     key_size=2048,
     backend=default_backend()
 )
-public_key = private_key.public_key()
+print("Clé privée générée")
 
-# Sérialiser la clé publique en PEM
+public_key = private_key.public_key()
+print("Clé publique dérivée")
+
+print("Sérialisation de la clé publique...")
 public_pem = public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 ).decode('utf-8')
+print("Clé publique sérialisée")
 
-# Sérialiser la clé privée en PEM (sans mot de passe)
+print("Sérialisation de la clé privée...")
 private_pem = private_key.private_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PrivateFormat.PKCS8,
     encryption_algorithm=serialization.NoEncryption()
 ).decode('utf-8')
+print("Clé privée sérialisée")
 
-# Retourner sous forme de tuple
 (public_pem, private_pem)
 `;
         
+        console.log("Exécution du code Python...");
         const result = await runPythonCode(pythonCode);
+        console.log("Résultat reçu :", result);
         
         if (result && Array.isArray(result) && result.length === 2) {
+            console.log("Clés générées avec succès !");
             myPublicKeyValue = result[0];
             myPrivateKeyValue = result[1];
             updateKeyStatus();
             alert("Paire de clés RSA générée avec succès !");
         } else {
             console.error("Résultat inattendu :", result);
-            throw new Error("Format de réponse invalide");
+            throw new Error("Format de réponse invalide. Résultat : " + JSON.stringify(result));
         }
     } catch (error) {
         console.error("Erreur détaillée lors de la génération RSA :", error);
-        alert("Erreur lors de la génération des clés RSA. Vérifiez la console pour plus de détails.");
+        alert("Erreur lors de la génération des clés RSA. Vérifiez la console pour plus de détails.\n\nErreur : " + error.message);
     } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = originalText;
