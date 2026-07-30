@@ -7,9 +7,10 @@ def generate_key():
     return key.decode('utf-8')
 
 def encrypt_message(key_str, message):
-    """Encrypt a message using Fernet key"""
+    """Encrypt a message using Fernet key, preserves newlines"""
     key = key_str.encode('utf-8')
     f = Fernet(key)
+    # Le message est déjà en UTF-8, on l'encode en bytes
     encrypted = f.encrypt(message.encode('utf-8'))
     return encrypted.decode('utf-8')
 
