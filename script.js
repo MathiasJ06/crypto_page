@@ -2,6 +2,9 @@
 let pyodide;
 let isPyodideReady = false;
 let pythonModuleLoaded = false;
+// Stockage des clés réelles (masquées dans l'UI)
+let encryptKeyValue = "";
+let decryptKeyValue = "";
 
 // Initialiser Pyodide
 async function initializePyodide() {
@@ -45,7 +48,7 @@ async function loadPythonModule() {
         const pythonCode = await response.text();
         await pyodide.runPythonAsync(pythonCode);
         pythonModuleLoaded = true;
-        console.log("Module Python charge");
+        console.log("Module Python chargé");
     } catch (error) {
         console.error("Erreur lors du chargement du module Python :", error);
     }
@@ -53,7 +56,6 @@ async function loadPythonModule() {
 
 // Echapper les caractères spéciaux pour Python
 function escapeForPython(str) {
-    // Echapper les backslashes, guillemets doubles et newlines
     return str.replace(/\\/g, '\\\\')
               .replace(/"/g, '\\"')
               .replace(/\n/g, '\\n')
@@ -71,7 +73,6 @@ async function runPythonFunction(functionName, ...args) {
     try {
         const argsStr = args.map(arg => {
             if (typeof arg === 'string') {
-                // Echapper correctement pour Python
                 const escaped = escapeForPython(arg);
                 return `"""${escaped}"""`;
             }
@@ -86,7 +87,19 @@ async function runPythonFunction(functionName, ...args) {
     }
 }
 
-// Generer une cle Fernet
+// Masquer la clé dans l'UI
+function maskKey(key) {
+    if (!key || key.length === 0) return "";
+    return "•".repeat(20); // Affiche 20 points pour masquer la clé
+}
+
+// Mettre à jour l'affichage des clés masquées
+function updateMaskedKeys() {
+    document.getElementById('encrypt-key').value = maskKey(encryptKeyValue);
+    document.getElementById('decrypt-key').value = maskKey(decryptKeyValue);
+}
+
+// Générer une clé Fernet
 async function generateKey() {
     if (!isPyodideReady) {
         alert("Pyodide n'est pas encore pret. Veuillez patienter...");
@@ -94,33 +107,32 @@ async function generateKey() {
     }
 
     const keyInput = document.getElementById('encrypt-key');
-    keyInput.value = "Generation en cours...";
+    keyInput.value = "Génération en cours...";
 
     try {
         const key = await runPythonFunction('generate_key');
         if (key) {
-            keyInput.value = key;
-            // Copier aussi dans l'onglet déchiffrage
-            document.getElementById('decrypt-key').value = key;
+            encryptKeyValue = key;
+            decryptKeyValue = key;
+            updateMaskedKeys();
         } else {
-            keyInput.value = "Erreur de generation";
+            keyInput.value = "Erreur de génération";
         }
     } catch (error) {
-        keyInput.value = "Erreur de generation";
+        keyInput.value = "Erreur de génération";
     }
 }
 
-// Chiffrer le texte en temps reel
+// Chiffrer le texte en temps réel
 async function encryptText() {
-    const keyInput = document.getElementById('encrypt-key');
     const inputText = document.getElementById('encrypt-input');
     const outputText = document.getElementById('encrypt-output');
 
-    const key = keyInput.value.trim();
+    const key = encryptKeyValue.trim();
     const text = inputText.value;
 
     if (!key) {
-        outputText.value = "Veuillez d'abord fournir une cle";
+        outputText.value = "Veuillez d'abord générer ou charger une clé";
         return;
     }
 
@@ -143,17 +155,16 @@ async function encryptText() {
     }
 }
 
-// Dechiffrer le texte en temps reel
+// Déchiffrer le texte en temps réel
 async function decryptText() {
-    const keyInput = document.getElementById('decrypt-key');
     const inputText = document.getElementById('decrypt-input');
     const outputText = document.getElementById('decrypt-output');
 
-    const key = keyInput.value.trim();
+    const key = decryptKeyValue.trim();
     const text = inputText.value;
 
     if (!key) {
-        outputText.value = "Veuillez d'abord fournir une cle";
+        outputText.value = "Veuillez d'abord générer ou charger une clé";
         return;
     }
 
@@ -162,17 +173,85 @@ async function decryptText() {
         return;
     }
 
-    outputText.value = "Dechiffrement en cours...";
+    outputText.value = "Déchiffrement en cours...";
 
     try {
         const decrypted = await runPythonFunction('decrypt_message', key, text);
         if (decrypted) {
             outputText.value = decrypted;
         } else {
-            outputText.value = "Cle incorrecte ou message invalide";
+            outputText.value = "Clé incorrecte ou message invalide";
         }
     } catch (error) {
-        outputText.value = "Cle incorrecte ou message invalide";
+        outputText.value = "Clé incorrecte ou message invalide";
+    }
+}
+
+// Télécharger une clé sous forme de fichier
+function downloadKey(key, keyType) {
+    if (!key || key.length === 0) {
+        alert("Aucune clé à télécharger.");
+        return;
+    }
+    
+    const blob = new Blob([key], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fernet_key_${keyType}_${new Date().toISOString().slice(0, 10)}.key`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Charger une clé depuis un fichier
+function loadKeyFromFile(keyType) {
+    const fileInput = document.getElementById('file-input');
+    fileInput.onchange = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const key = e.target.result.trim();
+            if (keyType === 'encrypt') {
+                encryptKeyValue = key;
+            } else {
+                decryptKeyValue = key;
+            }
+            updateMaskedKeys();
+            
+            // Réinitialiser l'input pour permettre de recharger le même fichier
+            fileInput.value = "";
+        };
+        reader.readAsText(file);
+    };
+    fileInput.click();
+}
+
+// Effacer les clés
+function clearKeys() {
+    encryptKeyValue = "";
+    decryptKeyValue = "";
+    updateMaskedKeys();
+    document.getElementById('encrypt-output').value = "";
+    document.getElementById('decrypt-output').value = "";
+}
+
+// Effacer une clé spécifique
+function clearKey(keyType) {
+    if (keyType === 'encrypt') {
+        encryptKeyValue = "";
+    } else {
+        decryptKeyValue = "";
+    }
+    updateMaskedKeys();
+    
+    if (keyType === 'encrypt') {
+        document.getElementById('encrypt-output').value = "";
+    } else {
+        document.getElementById('decrypt-output').value = "";
     }
 }
 
@@ -194,59 +273,34 @@ function setupTabs() {
     });
 }
 
-// Effacer un champ
-function clearField(elementId) {
-    document.getElementById(elementId).value = "";
-    
-    if (elementId === 'encrypt-key') {
-        document.getElementById('encrypt-output').value = "";
-    }
-    
-    if (elementId === 'decrypt-key') {
-        document.getElementById('decrypt-output').value = "";
-    }
-}
-
 // Evenements
 document.addEventListener('DOMContentLoaded', () => {
     setupTabs();
 
     document.getElementById('generate-key-btn').addEventListener('click', generateKey);
-    document.getElementById('clear-key-btn').addEventListener('click', () => {
-        clearField('encrypt-key');
-        clearField('decrypt-key');
-    });
+    document.getElementById('clear-key-btn').addEventListener('click', clearKeys);
+    document.getElementById('clear-decrypt-key-btn').addEventListener('click', () => clearKey('decrypt'));
     
-    document.getElementById('clear-decrypt-key-btn').addEventListener('click', () => {
-        clearField('decrypt-key');
-    });
+    document.getElementById('download-encrypt-key-btn').addEventListener('click', () => downloadKey(encryptKeyValue, 'encrypt'));
+    document.getElementById('download-decrypt-key-btn').addEventListener('click', () => downloadKey(decryptKeyValue, 'decrypt'));
+    
+    document.getElementById('load-encrypt-key-btn').addEventListener('click', () => loadKeyFromFile('encrypt'));
+    document.getElementById('load-decrypt-key-btn').addEventListener('click', () => loadKeyFromFile('decrypt'));
 
-    // Chiffrement en temps reel (avec debounce)
+    // Chiffrement en temps réel (avec debounce)
     let encryptTimeout;
     const encryptInput = document.getElementById('encrypt-input');
-    const encryptKey = document.getElementById('encrypt-key');
     
     encryptInput.addEventListener('input', () => {
         clearTimeout(encryptTimeout);
         encryptTimeout = setTimeout(encryptText, 500);
     });
     
-    encryptKey.addEventListener('input', () => {
-        clearTimeout(encryptTimeout);
-        encryptTimeout = setTimeout(encryptText, 500);
-    });
-
-    // Dechiffrement en temps reel (avec debounce)
+    // Déchiffrement en temps réel (avec debounce)
     let decryptTimeout;
     const decryptInput = document.getElementById('decrypt-input');
-    const decryptKey = document.getElementById('decrypt-key');
     
     decryptInput.addEventListener('input', () => {
-        clearTimeout(decryptTimeout);
-        decryptTimeout = setTimeout(decryptText, 500);
-    });
-    
-    decryptKey.addEventListener('input', () => {
         clearTimeout(decryptTimeout);
         decryptTimeout = setTimeout(decryptText, 500);
     });

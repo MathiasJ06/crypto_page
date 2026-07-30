@@ -27,10 +27,12 @@
             <div class="tab-content active" id="encrypt-tab">
                 <div class="section">
                     <div class="key-section">
-                        <textarea id="encrypt-key" rows="2" placeholder="Clé Fernet"></textarea>
+                        <textarea id="encrypt-key" rows="2" placeholder="Clé Fernet (masquée)" readonly></textarea>
                         <div class="key-buttons">
                             <button id="generate-key-btn">Générer</button>
                             <button id="clear-key-btn">Effacer</button>
+                            <button id="download-encrypt-key-btn">Télécharger</button>
+                            <button id="load-encrypt-key-btn">Charger</button>
                         </div>
                     </div>
                 </div>
@@ -47,9 +49,11 @@
             <div class="tab-content" id="decrypt-tab">
                 <div class="section">
                     <div class="key-section">
-                        <textarea id="decrypt-key" rows="2" placeholder="Clé Fernet"></textarea>
+                        <textarea id="decrypt-key" rows="2" placeholder="Clé Fernet (masquée)" readonly></textarea>
                         <div class="key-buttons">
                             <button id="clear-decrypt-key-btn">Effacer</button>
+                            <button id="download-decrypt-key-btn">Télécharger</button>
+                            <button id="load-decrypt-key-btn">Charger</button>
                         </div>
                     </div>
                 </div>
@@ -64,6 +68,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Input caché pour la sélection de fichier -->
+    <input type="file" id="file-input" accept=".txt,.key" style="display: none;">
 
     <script src="script.js"></script>
 </body>
