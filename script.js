@@ -81,7 +81,7 @@ async function runPythonCode(code) {
         return result;
     } catch (error) {
         console.error("Erreur dans l'exécution Python :", error);
-        return null;
+        throw error; // Re-lancer l'erreur pour la gérer dans l'appelant
     }
 }
 
@@ -107,17 +107,20 @@ function updateKeyStatus() {
     }
 }
 
-// Mettre à jour la liste des contacts dans le select
+// Mettre à jour la liste des contacts dans les selects
 function updateContactsSelect() {
-    const select = document.getElementById('encrypt-contact-select');
-    select.innerHTML = '<option value="">-- Sélectionner un interlocuteur --</option>';
+    const encryptSelect = document.getElementById('encrypt-contact-select');
+    const decryptSelect = document.getElementById('decrypt-contact-select');
+    
+    const options = '<option value="">-- Sélectionner un interlocuteur --</option>';
     
     contacts.forEach((contact, index) => {
-        const option = document.createElement('option');
-        option.value = index;
-        option.textContent = contact.name;
-        select.appendChild(option);
+        const option = `<option value="${index}">${contact.name}</option>`;
+        options += option;
     });
+    
+    encryptSelect.innerHTML = options;
+    decryptSelect.innerHTML = options;
 }
 
 // Mettre à jour l'affichage de la liste des contacts
@@ -133,9 +136,10 @@ function updateContactsList() {
         nameSpan.className = 'contact-name';
         nameSpan.textContent = contact.name;
         
-        const keySpan = document.createElement('span');
-        keySpan.className = 'contact-key';
-        keySpan.textContent = "✅ Clé chargée";
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'contact-status';
+        statusSpan.textContent = "✅";
+        statusSpan.title = "Clé chargée";
         
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-contact-btn';
@@ -143,7 +147,7 @@ function updateContactsList() {
         removeBtn.addEventListener('click', () => removeContact(index));
         
         contactItem.appendChild(nameSpan);
-        contactItem.appendChild(keySpan);
+        contactItem.appendChild(statusSpan);
         contactItem.appendChild(removeBtn);
         contactsList.appendChild(contactItem);
     });
@@ -163,6 +167,7 @@ async function generateRSAKeys() {
     }
 
     const generateBtn = document.getElementById('generate-rsa-keys-btn');
+    const originalText = generateBtn.textContent;
     generateBtn.disabled = true;
     generateBtn.textContent = "Génération en cours...";
 
@@ -193,22 +198,23 @@ private_pem = private_key.private_bytes(
     encryption_algorithm=serialization.NoEncryption()
 ).decode('utf-8')
 
-public_pem, private_pem
+[public_pem, private_pem]
 `;
         const result = await runPythonCode(pythonCode);
-        if (result) {
+        if (result && Array.isArray(result) && result.length === 2) {
             myPublicKeyValue = result[0];
             myPrivateKeyValue = result[1];
             updateKeyStatus();
+            alert("Paire de clés RSA générée avec succès !");
         } else {
-            alert("Erreur de génération des clés RSA.");
+            throw new Error("Résultat de génération invalide");
         }
     } catch (error) {
         console.error("Erreur lors de la génération RSA :", error);
-        alert("Erreur de génération des clés RSA.");
+        alert("Erreur lors de la génération des clés RSA. Veuillez réessayer.");
     } finally {
         generateBtn.disabled = false;
-        generateBtn.textContent = "Générer ma paire RSA";
+        generateBtn.textContent = originalText;
     }
 }
 
@@ -235,10 +241,10 @@ function addContact() {
     }
     
     // Vérifier si le contact existe déjà
-    const existingContact = contacts.find(c => c.name === name);
-    if (existingContact) {
+    const existingContactIndex = contacts.findIndex(c => c.name === name);
+    if (existingContactIndex !== -1) {
         if (confirm(`Un contact avec le nom "${name}" existe déjà. Voulez-vous le remplacer ?`)) {
-            existingContact.publicKey = publicKey;
+            contacts[existingContactIndex].publicKey = publicKey;
         }
     } else {
         contacts.push({ name, publicKey });
@@ -307,24 +313,24 @@ async function encryptMessage() {
     }
     
     const encryptBtn = document.getElementById('encrypt-btn');
+    const originalText = encryptBtn.textContent;
     encryptBtn.disabled = true;
     encryptBtn.textContent = "Chiffrement en cours...";
     outputText.value = "Chiffrement en cours...";
     
     try {
         // Générer une clé Fernet aléatoire
-        const fernetKey = await runPythonCode('generate_key()');
-        if (!fernetKey) {
-            outputText.value = "Erreur lors de la génération de la clé Fernet.";
-            return;
+        const fernetKeyResult = await runPythonCode('generate_key()');
+        if (!fernetKeyResult) {
+            throw new Error("Échec de la génération de la clé Fernet");
         }
+        const fernetKey = fernetKeyResult;
         
         // Chiffrer le message avec la clé Fernet
         const escapedText = escapeForPython(text);
         const encryptedMessage = await runPythonCode(`encrypt_message("${fernetKey}", """${escapedText}""")`);
         if (!encryptedMessage) {
-            outputText.value = "Erreur lors du chiffrement du message.";
-            return;
+            throw new Error("Échec du chiffrement du message");
         }
         
         // Chiffrer la clé Fernet avec la clé publique RSA de l'interlocuteur
@@ -356,12 +362,12 @@ base64.b64encode(ciphertext).decode('utf-8')
 `);
         
         if (!encryptedFernetKey) {
-            outputText.value = "Erreur lors du chiffrement de la clé Fernet.";
-            return;
+            throw new Error("Échec du chiffrement de la clé Fernet");
         }
         
-        // Retourner un objet JSON avec le message chiffré et la clé Fernet chiffrée
+        // Retourner un objet JSON avec le message chiffré, la clé Fernet chiffrée et le nom de l'interlocuteur
         const result = JSON.stringify({
+            from: contacts[parseInt(selectedIndex)].name,
             encrypted_message: encryptedMessage,
             encrypted_fernet_key: encryptedFernetKey
         }, null, 2);
@@ -370,19 +376,26 @@ base64.b64encode(ciphertext).decode('utf-8')
         
     } catch (error) {
         console.error("Erreur lors du chiffrement hybride :", error);
-        outputText.value = "Erreur lors du chiffrement hybride.";
+        outputText.value = "Erreur lors du chiffrement hybride: " + error.message;
     } finally {
         encryptBtn.disabled = false;
-        encryptBtn.textContent = "Chiffrer le message";
+        encryptBtn.textContent = originalText;
     }
 }
 
 // Déchiffrer un message (hybride : RSA + Fernet)
 async function decryptMessage() {
+    const contactSelect = document.getElementById('decrypt-contact-select');
     const inputText = document.getElementById('decrypt-input');
     const outputText = document.getElementById('decrypt-output');
     
+    const selectedIndex = contactSelect.value;
     const text = inputText.value.trim();
+    
+    if (!selectedIndex && selectedIndex !== "0") {
+        outputText.value = "Veuillez sélectionner un interlocuteur.";
+        return;
+    }
     
     if (!text) {
         outputText.value = "";
@@ -395,6 +408,7 @@ async function decryptMessage() {
     }
     
     const decryptBtn = document.getElementById('decrypt-btn');
+    const originalText = decryptBtn.textContent;
     decryptBtn.disabled = true;
     decryptBtn.textContent = "Déchiffrement en cours...";
     outputText.value = "Déchiffrement en cours...";
@@ -446,8 +460,7 @@ fernet_key.decode('utf-8')
 `);
         
         if (!fernetKey) {
-            outputText.value = "Erreur lors du déchiffrement de la clé Fernet.";
-            return;
+            throw new Error("Échec du déchiffrement de la clé Fernet");
         }
         
         // Déchiffrer le message avec la clé Fernet
@@ -457,15 +470,15 @@ fernet_key.decode('utf-8')
         if (decryptedMessage) {
             outputText.value = decryptedMessage;
         } else {
-            outputText.value = "Erreur lors du déchiffrement du message.";
+            throw new Error("Échec du déchiffrement du message");
         }
         
     } catch (error) {
         console.error("Erreur lors du déchiffrement hybride :", error);
-        outputText.value = "Erreur lors du déchiffrement hybride.";
+        outputText.value = "Erreur lors du déchiffrement hybride: " + error.message;
     } finally {
         decryptBtn.disabled = false;
-        decryptBtn.textContent = "Déchiffrer le message";
+        decryptBtn.textContent = originalText;
     }
 }
 
