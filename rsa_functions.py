@@ -10,7 +10,7 @@ backend = default_backend()
 
 
 def generate_rsa_keys():
-    """Génère une paire de clés RSA 2048 bits et retourne (public_key_pem, private_key_pem)"""
+    """Génère une paire de clés RSA 2048 bits et retourne un JSON avec public_key et private_key"""
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -30,7 +30,8 @@ def generate_rsa_keys():
         encryption_algorithm=serialization.NoEncryption()
     ).decode('utf-8')
     
-    return (public_pem, private_pem)
+    # Retourner sous forme de JSON pour une meilleure compatibilité avec Pyodide
+    return json.dumps({"public_key": public_pem, "private_key": private_pem})
 
 
 def encrypt_hybrid(public_key_pem, message):

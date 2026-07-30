@@ -184,18 +184,36 @@ async function generateRSAKeys() {
         console.log("Génération des clés RSA...");
         const result = await runPythonFunction('generate_rsa_keys');
         
-        if (result && Array.isArray(result) && result.length === 2) {
-            if (!result[0].startsWith("-----BEGIN PUBLIC KEY-----") || !result[1].startsWith("-----BEGIN PRIVATE KEY-----")) {
-                throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
-            }
-            
-            myPublicKeyValue = result[0];
-            myPrivateKeyValue = result[1];
-            updateKeyStatus();
-            alert("Paire de clés RSA générée avec succès !");
-        } else {
-            throw new Error("Format de réponse invalide: " + JSON.stringify(result));
+        console.log("Résultat brut de generate_rsa_keys:", result);
+        
+        if (!result) {
+            throw new Error("Aucun résultat retourné");
         }
+        
+        // Parser le JSON retourné par Python
+        let keys;
+        try {
+            keys = JSON.parse(result);
+        } catch (e) {
+            console.error("Erreur de parsing JSON:", e);
+            console.error("Résultat non parsable:", result);
+            throw new Error("Le résultat n'est pas un JSON valide: " + result);
+        }
+        
+        if (!keys.public_key || !keys.private_key) {
+            throw new Error("Clés manquantes dans la réponse: " + JSON.stringify(keys));
+        }
+        
+        if (!keys.public_key.startsWith("-----BEGIN PUBLIC KEY-----") || !keys.private_key.startsWith("-----BEGIN PRIVATE KEY-----")) {
+            throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
+        }
+        
+        console.log("Clés RSA valides générées !");
+        myPublicKeyValue = keys.public_key;
+        myPrivateKeyValue = keys.private_key;
+        updateKeyStatus();
+        alert("Paire de clés RSA générée avec succès !");
+        
     } catch (error) {
         console.error("Erreur lors de la génération RSA:", error);
         alert("Erreur lors de la génération des clés RSA: " + error.message);
@@ -319,11 +337,18 @@ async function encryptMessage() {
             throw new Error("Échec du chiffrement hybride");
         }
         
-        // Ajouter le nom de l'interlocuteur au JSON
-        const parsedResult = JSON.parse(result);
-        parsedResult.from = contact.name;
+        // Parser le JSON retourné par Python
+        let encryptedData;
+        try {
+            encryptedData = JSON.parse(result);
+        } catch (e) {
+            throw new Error("Résultat du chiffrement invalide: " + result);
+        }
         
-        outputText.value = JSON.stringify(parsedResult, null, 2);
+        // Ajouter le nom de l'interlocuteur
+        encryptedData.from = contact.name;
+        
+        outputText.value = JSON.stringify(encryptedData, null, 2);
         
     } catch (error) {
         console.error("Erreur lors du chiffrement hybride:", error);
