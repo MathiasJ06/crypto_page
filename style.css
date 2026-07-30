@@ -213,13 +213,14 @@ button:disabled {
     cursor: not-allowed;
 }
 
-#generate-rsa-keys-btn, #encrypt-btn, #decrypt-btn, #add-contact-btn, #clear-keys-btn {
+/* Boutons principaux (accentués) */
+.primary-btn {
     background: var(--accent);
     color: white;
     border-color: var(--accent);
 }
 
-#generate-rsa-keys-btn:hover, #encrypt-btn:hover, #decrypt-btn:hover, #add-contact-btn:hover, #clear-keys-btn:hover {
+.primary-btn:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
 }
@@ -290,14 +291,9 @@ button:disabled {
     color: var(--text-primary);
 }
 
-.contact-item .contact-key {
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 0.8em;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
+.contact-item .contact-status {
+    color: var(--success);
+    font-size: 1.2em;
 }
 
 .contact-item .remove-contact-btn {
