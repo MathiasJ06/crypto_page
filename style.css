@@ -109,10 +109,19 @@ progress::-webkit-progress-value {
 /* Sections */
 .section {
     margin-bottom: 20px;
+    padding: 0 20px;
+}
+
+/* Sous-titres dans les sections */
+h3 {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    margin-bottom: 10px;
+    font-weight: normal;
 }
 
 /* Champs de texte */
-textarea {
+textarea, input[type="text"] {
     width: 100%;
     padding: 12px;
     border: 1px solid var(--input-border);
@@ -125,12 +134,17 @@ textarea {
     transition: border-color 0.3s;
 }
 
-textarea:focus {
+input[type="text"] {
+    resize: horizontal;
+    margin-bottom: 10px;
+}
+
+textarea:focus, input[type="text"]:focus {
     outline: none;
     border-color: var(--accent);
 }
 
-textarea::placeholder {
+textarea::placeholder, input[type="text"]::placeholder {
     color: var(--text-secondary);
 }
 
@@ -148,6 +162,7 @@ textarea[readonly] {
     display: flex;
     gap: 10px;
     margin-top: 10px;
+    flex-wrap: wrap;
 }
 
 /* Boutons */
@@ -173,13 +188,36 @@ button:disabled {
     cursor: not-allowed;
 }
 
-#generate-key-btn {
+#generate-symmetric-key-btn, #generate-rsa-keys-btn {
     background: var(--accent);
     color: white;
     border-color: var(--accent);
 }
 
-#generate-key-btn:hover {
+#generate-symmetric-key-btn:hover, #generate-rsa-keys-btn:hover {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+}
+
+/* Boutons d'action (Chiffrer/Déchiffrer) */
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+/* Section pour la génération de paire RSA */
+.key-pair-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.key-name-inputs {
+    display: flex;
+    gap: 10px;
+}
+
+.key-name-inputs input {
+    flex: 1;
 }

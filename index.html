@@ -19,58 +19,99 @@
         <div class="content" id="content" style="display: none;">
             <!-- Onglets -->
             <div class="tabs">
-                <button class="tab-button active" data-tab="encrypt">Chiffrage</button>
-                <button class="tab-button" data-tab="decrypt">Déchiffrage</button>
+                <button class="tab-button active" data-tab="symmetric">Chiffrement Symétrique</button>
+                <button class="tab-button" data-tab="asymmetric">Chiffrement Asymétrique</button>
             </div>
 
-            <!-- Contenu des onglets -->
-            <div class="tab-content active" id="encrypt-tab">
+            <!-- Contenu de l'onglet Symétrique -->
+            <div class="tab-content active" id="symmetric-tab">
                 <div class="section">
                     <div class="key-section">
-                        <textarea id="encrypt-key" rows="2" placeholder="Clé Fernet (masquée)" readonly></textarea>
+                        <textarea id="symmetric-key" rows="2" placeholder="Clé Fernet (masquée)" readonly></textarea>
                         <div class="key-buttons">
-                            <button id="generate-key-btn">Générer</button>
-                            <button id="clear-key-btn">Effacer</button>
-                            <button id="download-encrypt-key-btn">Télécharger</button>
-                            <button id="load-encrypt-key-btn">Charger</button>
+                            <button id="generate-symmetric-key-btn">Générer</button>
+                            <button id="clear-symmetric-key-btn">Effacer</button>
+                            <button id="download-symmetric-key-btn">Télécharger</button>
+                            <button id="load-symmetric-key-btn">Charger</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <textarea id="encrypt-input" rows="8" placeholder="Texte à chiffrer" spellcheck="false"></textarea>
+                    <textarea id="symmetric-input" rows="8" placeholder="Texte à chiffrer/déchiffrer" spellcheck="false"></textarea>
                 </div>
 
                 <div class="section">
-                    <textarea id="encrypt-output" rows="8" readonly placeholder="Résultat"></textarea>
+                    <div class="action-buttons">
+                        <button id="symmetric-encrypt-btn">Chiffrer</button>
+                        <button id="symmetric-decrypt-btn">Déchiffrer</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <textarea id="symmetric-output" rows="8" readonly placeholder="Résultat"></textarea>
                 </div>
             </div>
 
-            <div class="tab-content" id="decrypt-tab">
+            <!-- Contenu de l'onglet Asymétrique -->
+            <div class="tab-content" id="asymmetric-tab">
                 <div class="section">
+                    <h3>Générer une paire de clés RSA</h3>
+                    <div class="key-pair-section">
+                        <div class="key-name-inputs">
+                            <input type="text" id="public-key-name" placeholder="Nom de la clé publique" />
+                            <input type="text" id="private-key-name" placeholder="Nom de la clé privée" />
+                        </div>
+                        <button id="generate-rsa-keys-btn">Générer paire RSA</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>Clé Publique (à partager)</h3>
                     <div class="key-section">
-                        <textarea id="decrypt-key" rows="2" placeholder="Clé Fernet (masquée)" readonly></textarea>
+                        <textarea id="public-key" rows="2" placeholder="Clé publique (masquée)" readonly></textarea>
                         <div class="key-buttons">
-                            <button id="clear-decrypt-key-btn">Effacer</button>
-                            <button id="download-decrypt-key-btn">Télécharger</button>
-                            <button id="load-decrypt-key-btn">Charger</button>
+                            <button id="download-public-key-btn">Télécharger</button>
+                            <button id="load-public-key-btn">Charger</button>
+                            <button id="clear-public-key-btn">Effacer</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <textarea id="decrypt-input" rows="8" placeholder="Texte à déchiffrer" spellcheck="false"></textarea>
+                    <h3>Clé Privée (à garder secrète)</h3>
+                    <div class="key-section">
+                        <textarea id="private-key" rows="2" placeholder="Clé privée (masquée)" readonly></textarea>
+                        <div class="key-buttons">
+                            <button id="download-private-key-btn">Télécharger</button>
+                            <button id="load-private-key-btn">Charger</button>
+                            <button id="clear-private-key-btn">Effacer</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="section">
-                    <textarea id="decrypt-output" rows="8" readonly placeholder="Résultat"></textarea>
+                    <textarea id="asymmetric-input" rows="8" placeholder="Texte à chiffrer/déchiffrer" spellcheck="false"></textarea>
+                </div>
+
+                <div class="section">
+                    <div class="action-buttons">
+                        <button id="asymmetric-encrypt-btn">Chiffrer avec clé publique</button>
+                        <button id="asymmetric-decrypt-btn">Déchiffrer avec clé privée</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <textarea id="asymmetric-output" rows="8" readonly placeholder="Résultat"></textarea>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Input caché pour la sélection de fichier -->
-    <input type="file" id="file-input" accept=".txt,.key" style="display: none;">
+    <!-- Inputs cachés pour la sélection de fichiers -->
+    <input type="file" id="file-input-symmetric" accept=".txt,.key" style="display: none;">
+    <input type="file" id="file-input-public" accept=".txt,.key" style="display: none;">
+    <input type="file" id="file-input-private" accept=".txt,.key" style="display: none;">
 
     <script src="script.js"></script>
 </body>
