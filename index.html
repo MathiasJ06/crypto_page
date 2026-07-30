@@ -34,29 +34,22 @@
                         </div>
                         <button id="generate-rsa-keys-btn">Générer ma paire RSA</button>
                     </div>
-                </div>
-
-                <div class="section">
-                    <h3>Ma clé publique (à partager)</h3>
-                    <div class="key-section">
-                        <textarea id="my-public-key" rows="2" placeholder="Ma clé publique (masquée)" readonly></textarea>
-                        <div class="key-buttons">
-                            <button id="download-my-public-key-btn">Télécharger</button>
-                            <button id="load-my-public-key-btn">Charger</button>
-                            <button id="clear-my-public-key-btn">Effacer</button>
+                    <div class="key-status">
+                        <div class="key-status-item">
+                            <span>Clé publique : </span>
+                            <span id="public-key-status">❌ Non chargée</span>
+                        </div>
+                        <div class="key-status-item">
+                            <span>Clé privée : </span>
+                            <span id="private-key-status">❌ Non chargée</span>
                         </div>
                     </div>
-                </div>
-
-                <div class="section">
-                    <h3>Ma clé privée (secrète)</h3>
-                    <div class="key-section">
-                        <textarea id="my-private-key" rows="2" placeholder="Ma clé privée (masquée)" readonly></textarea>
-                        <div class="key-buttons">
-                            <button id="download-my-private-key-btn">Télécharger</button>
-                            <button id="load-my-private-key-btn">Charger</button>
-                            <button id="clear-my-private-key-btn">Effacer</button>
-                        </div>
+                    <div class="key-buttons">
+                        <button id="download-my-public-key-btn">Télécharger clé publique</button>
+                        <button id="download-my-private-key-btn">Télécharger clé privée</button>
+                        <button id="load-my-public-key-btn">Charger clé publique</button>
+                        <button id="load-my-private-key-btn">Charger clé privée</button>
+                        <button id="clear-keys-btn">Effacer les clés</button>
                     </div>
                 </div>
 

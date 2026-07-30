@@ -85,16 +85,26 @@ async function runPythonCode(code) {
     }
 }
 
-// Masquer la clé dans l'UI
-function maskKey(key) {
-    if (!key || key.length === 0) return "";
-    return "•".repeat(20);
-}
-
-// Mettre à jour l'affichage des clés masquées
-function updateMaskedKeys() {
-    document.getElementById('my-public-key').value = maskKey(myPublicKeyValue);
-    document.getElementById('my-private-key').value = maskKey(myPrivateKeyValue);
+// Mettre à jour l'affichage du statut des clés
+function updateKeyStatus() {
+    const publicKeyStatus = document.getElementById('public-key-status');
+    const privateKeyStatus = document.getElementById('private-key-status');
+    
+    if (myPublicKeyValue && myPublicKeyValue.length > 0) {
+        publicKeyStatus.textContent = "✅ Chargée";
+        publicKeyStatus.className = "ok";
+    } else {
+        publicKeyStatus.textContent = "❌ Non chargée";
+        publicKeyStatus.className = "error";
+    }
+    
+    if (myPrivateKeyValue && myPrivateKeyValue.length > 0) {
+        privateKeyStatus.textContent = "✅ Chargée";
+        privateKeyStatus.className = "ok";
+    } else {
+        privateKeyStatus.textContent = "❌ Non chargée";
+        privateKeyStatus.className = "error";
+    }
 }
 
 // Mettre à jour la liste des contacts dans le select
@@ -125,7 +135,7 @@ function updateContactsList() {
         
         const keySpan = document.createElement('span');
         keySpan.className = 'contact-key';
-        keySpan.textContent = maskKey(contact.publicKey);
+        keySpan.textContent = "✅ Clé chargée";
         
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-contact-btn';
@@ -152,10 +162,9 @@ async function generateRSAKeys() {
         return;
     }
 
-    const publicKeyInput = document.getElementById('my-public-key');
-    const privateKeyInput = document.getElementById('my-private-key');
-    publicKeyInput.value = "Génération en cours...";
-    privateKeyInput.value = "Génération en cours...";
+    const generateBtn = document.getElementById('generate-rsa-keys-btn');
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Génération en cours...";
 
     try {
         const pythonCode = `
@@ -190,15 +199,16 @@ public_pem, private_pem
         if (result) {
             myPublicKeyValue = result[0];
             myPrivateKeyValue = result[1];
-            updateMaskedKeys();
+            updateKeyStatus();
         } else {
-            publicKeyInput.value = "Erreur de génération";
-            privateKeyInput.value = "Erreur de génération";
+            alert("Erreur de génération des clés RSA.");
         }
     } catch (error) {
         console.error("Erreur lors de la génération RSA :", error);
-        publicKeyInput.value = "Erreur de génération";
-        privateKeyInput.value = "Erreur de génération";
+        alert("Erreur de génération des clés RSA.");
+    } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Générer ma paire RSA";
     }
 }
 
@@ -296,6 +306,9 @@ async function encryptMessage() {
         return;
     }
     
+    const encryptBtn = document.getElementById('encrypt-btn');
+    encryptBtn.disabled = true;
+    encryptBtn.textContent = "Chiffrement en cours...";
     outputText.value = "Chiffrement en cours...";
     
     try {
@@ -358,6 +371,9 @@ base64.b64encode(ciphertext).decode('utf-8')
     } catch (error) {
         console.error("Erreur lors du chiffrement hybride :", error);
         outputText.value = "Erreur lors du chiffrement hybride.";
+    } finally {
+        encryptBtn.disabled = false;
+        encryptBtn.textContent = "Chiffrer le message";
     }
 }
 
@@ -378,6 +394,9 @@ async function decryptMessage() {
         return;
     }
     
+    const decryptBtn = document.getElementById('decrypt-btn');
+    decryptBtn.disabled = true;
+    decryptBtn.textContent = "Déchiffrement en cours...";
     outputText.value = "Déchiffrement en cours...";
     
     try {
@@ -444,6 +463,9 @@ fernet_key.decode('utf-8')
     } catch (error) {
         console.error("Erreur lors du déchiffrement hybride :", error);
         outputText.value = "Erreur lors du déchiffrement hybride.";
+    } finally {
+        decryptBtn.disabled = false;
+        decryptBtn.textContent = "Déchiffrer le message";
     }
 }
 
@@ -486,7 +508,7 @@ function loadKeyFromFile(keyType, fileInputId) {
             } else if (keyType === 'private') {
                 myPrivateKeyValue = key;
             }
-            updateMaskedKeys();
+            updateKeyStatus();
             fileInput.value = "";
         };
         reader.readAsText(file);
@@ -494,15 +516,13 @@ function loadKeyFromFile(keyType, fileInputId) {
     fileInput.click();
 }
 
-// Effacer les clés
-function clearMyPublicKey() {
-    myPublicKeyValue = "";
-    updateMaskedKeys();
-}
-
-function clearMyPrivateKey() {
-    myPrivateKeyValue = "";
-    updateMaskedKeys();
+// Effacer toutes les clés
+function clearKeys() {
+    if (confirm("Voulez-vous vraiment effacer toutes vos clés ?")) {
+        myPublicKeyValue = "";
+        myPrivateKeyValue = "";
+        updateKeyStatus();
+    }
 }
 
 // ====================
@@ -539,8 +559,7 @@ function setupEventListeners() {
     document.getElementById('download-my-private-key-btn').addEventListener('click', () => downloadKey(myPrivateKeyValue, 'private'));
     document.getElementById('load-my-public-key-btn').addEventListener('click', () => loadKeyFromFile('public', 'file-input-my-public'));
     document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private'));
-    document.getElementById('clear-my-public-key-btn').addEventListener('click', clearMyPublicKey);
-    document.getElementById('clear-my-private-key-btn').addEventListener('click', clearMyPrivateKey);
+    document.getElementById('clear-keys-btn').addEventListener('click', clearKeys);
 
     // Gestion des contacts
     document.getElementById('add-contact-btn').addEventListener('click', addContact);
