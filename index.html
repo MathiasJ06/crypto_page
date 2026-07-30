@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Générateur de clé Fernet avec Pyodide</title>
+    <title>Outil Fernet avec Pyodide</title>
     <!-- Chargez Pyodide -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Générateur de clé Fernet avec Pyodide</h1>
+        <h1>Outil Fernet avec Pyodide</h1>
         <p>
-            Cette interface utilise <strong>Python (Pyodide)</strong> pour générer une clé Fernet
-            directement dans votre navigateur, sans serveur backend.
+            Cette interface utilise <strong>Python (Pyodide)</strong> pour générer des clés Fernet
+            et chiffrer/déchiffrer des messages directement dans votre navigateur, sans serveur backend.
         </p>
 
         <div class="loading" id="loading">
@@ -22,27 +22,68 @@
         </div>
 
         <div class="content" id="content" style="display: none;">
-            <button id="generate-key-btn">Générer une clé Fernet</button>
+            <!-- Section Génération de clé -->
+            <div class="section">
+                <h2>🔑 Générateur de clé Fernet</h2>
+                <button id="generate-key-btn">Générer une clé Fernet</button>
 
-            <div class="result">
-                <h2>Votre clé Fernet :</h2>
-                <textarea id="key-output" rows="4" readonly placeholder="La clé générée apparaîtra ici..."></textarea>
-                <div class="button-group">
-                    <button id="copy-btn">Copier la clé</button>
-                    <button id="clear-btn">Effacer</button>
+                <div class="result">
+                    <h3>Votre clé Fernet :</h3>
+                    <textarea id="key-output" rows="4" readonly placeholder="La clé générée apparaîtra ici..."></textarea>
+                    <div class="button-group">
+                        <button id="copy-key-btn">Copier la clé</button>
+                        <button id="clear-key-btn">Effacer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Chiffrement -->
+            <div class="section">
+                <h2>🔒 Chiffrer un message</h2>
+                <div class="form-group">
+                    <label for="encrypt-message">Message à chiffrer :</label>
+                    <textarea id="encrypt-message" rows="4" placeholder="Saisissez votre message ici..."></textarea>
+                </div>
+                <button id="encrypt-btn">Chiffrer le message</button>
+                <div class="result">
+                    <h3>Message chiffré :</h3>
+                    <textarea id="encrypted-output" rows="4" readonly placeholder="Le message chiffré apparaîtra ici..."></textarea>
+                    <div class="button-group">
+                        <button id="copy-encrypted-btn">Copier</button>
+                        <button id="clear-encrypted-btn">Effacer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Déchiffrement -->
+            <div class="section">
+                <h2>🔓 Déchiffrer un message</h2>
+                <div class="form-group">
+                    <label for="decrypt-message">Message chiffré :</label>
+                    <textarea id="decrypt-message" rows="4" placeholder="Collez votre message chiffré ici..."></textarea>
+                </div>
+                <button id="decrypt-btn">Déchiffrer le message</button>
+                <div class="result">
+                    <h3>Message déchiffré :</h3>
+                    <textarea id="decrypted-output" rows="4" readonly placeholder="Le message déchiffré apparaîtra ici..."></textarea>
+                    <div class="button-group">
+                        <button id="copy-decrypted-btn">Copier</button>
+                        <button id="clear-decrypted-btn">Effacer</button>
+                    </div>
                 </div>
             </div>
 
             <div class="info">
-                <h3>Comment utiliser cette clé ?</h3>
+                <h3>Comment utiliser cet outil ?</h3>
                 <p>
-                    Copiez cette clé et utilisez-la avec la bibliothèque <code>cryptography</code> en Python
-                    pour chiffrer/déchiffrer des messages. Exemple :
+                    1. Générez une clé Fernet en cliquant sur le bouton ci-dessus.<br>
+                    2. Copiez cette clé (elle sera utilisée automatiquement pour le chiffrement/déchiffrement).<br>
+                    3. Saisissez un message et chiffrez-le avec la clé.<br>
+                    4. Pour déchiffrer, collez le message chiffré et utilisez la même clé.
                 </p>
-                <pre><code>from cryptography.fernet import Fernet
-f = Fernet(b"votre_clé_ici")
-token = f.encrypt(b"Message secret")
-print(f.decrypt(token))</code></pre>
+                <p>
+                    <strong>Note :</strong> La clé est stockée dans votre navigateur uniquement pour cette session.
+                </p>
             </div>
         </div>
     </div>
