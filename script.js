@@ -32,8 +32,8 @@ async function initializePyodide() {
         await pyodide.loadPackage("cryptography");
         isPyodideReady = true;
 
-        // Charger le module Python (Fernet)
-        await loadPythonModule();
+        // Charger les modules Python (Fernet + RSA)
+        await loadPythonModules();
 
         loadingDiv.style.display = 'none';
         contentDiv.style.display = 'block';
@@ -50,17 +50,25 @@ async function initializePyodide() {
     }
 }
 
-// Charger le module Python (Fernet)
-async function loadPythonModule() {
+// Charger les modules Python (Fernet + RSA)
+async function loadPythonModules() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
     try {
-        const response = await fetch('generate_fernet_key.py');
-        const pythonCode = await response.text();
-        await pyodide.runPythonAsync(pythonCode);
+        // Charger le module Fernet
+        const fernetResponse = await fetch('generate_fernet_key.py');
+        const fernetCode = await fernetResponse.text();
+        await pyodide.runPythonAsync(fernetCode);
+        
+        // Charger le module RSA
+        const rsaResponse = await fetch('rsa_functions.py');
+        const rsaCode = await rsaResponse.text();
+        await pyodide.runPythonAsync(rsaCode);
+        
         pythonModuleLoaded = true;
+        console.log("Modules Python (Fernet + RSA) chargés");
     } catch (error) {
-        console.error("Erreur lors du chargement du module Python :", error);
+        console.error("Erreur lors du chargement des modules Python :", error);
     }
 }
 
@@ -73,18 +81,26 @@ function escapeForPython(str) {
               .replace(/\t/g, '\\t');
 }
 
-// Executer du code Python
-async function runPythonCode(code) {
-    if (!isPyodideReady) {
-        console.log("Pyodide non pret");
+// Executer une fonction Python
+async function runPythonFunction(functionName, ...args) {
+    if (!isPyodideReady || !pythonModuleLoaded) {
+        console.log("Pyodide ou modules non prêts");
         return null;
     }
 
     try {
-        const result = await pyodide.runPythonAsync(code);
+        const argsStr = args.map(arg => {
+            if (typeof arg === 'string') {
+                const escaped = escapeForPython(arg);
+                return `"""${escaped}"""`;
+            }
+            return arg;
+        }).join(', ');
+        
+        const result = await pyodide.runPythonAsync(`${functionName}(${argsStr})`);
         return result;
     } catch (error) {
-        console.error("Erreur dans l'exécution Python :", error);
+        console.error(`Erreur dans ${functionName}:`, error);
         throw error;
     }
 }
@@ -152,7 +168,7 @@ function updateContactsList() {
 // FONCTIONS DE GESTION DES CLÉS
 // ====================
 
-// Générer une paire de clés RSA (version corrigée et isolée)
+// Générer une paire de clés RSA
 async function generateRSAKeys() {
     if (!isPyodideReady) {
         alert("Pyodide n'est pas encore prêt. Veuillez patienter...");
@@ -165,71 +181,24 @@ async function generateRSAKeys() {
     generateBtn.textContent = "Génération en cours...";
 
     try {
-        console.log("=== Début génération RSA ===");
+        console.log("Génération des clés RSA...");
+        const result = await runPythonFunction('generate_rsa_keys');
         
-        // Code Python MINIMAL pour générer une paire RSA
-        const pythonCode = `
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-
-backend = default_backend()
-private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-    backend=backend
-)
-public_key = private_key.public_key()
-
-public_pem = public_key.public_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PublicFormat.SubjectPublicKeyInfo
-).decode('utf-8')
-
-private_pem = private_key.private_bytes(
-    encoding=serialization.Encoding.PEM,
-    format=serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=serialization.NoEncryption()
-).decode('utf-8')
-
-(public_pem, private_pem)
-`;
-        
-        console.log("Exécution du code RSA...");
-        const result = await runPythonCode(pythonCode);
-        console.log("Résultat brut :", result);
-        
-        if (!result) {
-            throw new Error("Aucun résultat retourné par Pyodide");
+        if (result && Array.isArray(result) && result.length === 2) {
+            if (!result[0].startsWith("-----BEGIN PUBLIC KEY-----") || !result[1].startsWith("-----BEGIN PRIVATE KEY-----")) {
+                throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
+            }
+            
+            myPublicKeyValue = result[0];
+            myPrivateKeyValue = result[1];
+            updateKeyStatus();
+            alert("Paire de clés RSA générée avec succès !");
+        } else {
+            throw new Error("Format de réponse invalide: " + JSON.stringify(result));
         }
-        
-        // Vérifier que le résultat est un tableau avec 2 éléments
-        if (!Array.isArray(result) || result.length !== 2) {
-            console.error("Format inattendu. Type:", typeof result, "Longueur:", result ? result.length : 'N/A');
-            throw new Error(`Format de réponse invalide. Type: ${typeof result}, Valeur: ${JSON.stringify(result)}`);
-        }
-        
-        // Vérifier que les clés ne sont pas vides
-        if (!result[0] || !result[1]) {
-            throw new Error("Une ou plusieurs clés sont vides");
-        }
-        
-        // Vérifier que les clés commencent par les en-têtes PEM
-        if (!result[0].startsWith("-----BEGIN PUBLIC KEY-----") || !result[1].startsWith("-----BEGIN PRIVATE KEY-----")) {
-            console.error("Clés mal formatées. Public:", result[0].substring(0, 50));
-            console.error("Clés mal formatées. Private:", result[1].substring(0, 50));
-            throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
-        }
-        
-        console.log("Clés RSA valides générées !");
-        myPublicKeyValue = result[0];
-        myPrivateKeyValue = result[1];
-        updateKeyStatus();
-        alert("Paire de clés RSA générée avec succès !");
-        
     } catch (error) {
-        console.error("=== ERREUR RSA ===", error);
-        alert("Erreur lors de la génération des clés RSA.\n\nDétails: " + error.message + "\n\nVérifiez la console (F12) pour plus d'informations.");
+        console.error("Erreur lors de la génération RSA:", error);
+        alert("Erreur lors de la génération des clés RSA: " + error.message);
     } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = originalText;
@@ -255,7 +224,6 @@ function addContact() {
         return;
     }
     
-    // Vérifier que la clé commence par l'en-tête PEM
     if (!tempContactPublicKey.startsWith("-----BEGIN PUBLIC KEY-----")) {
         alert("La clé publique chargée n'est pas une clé RSA valide (format PEM attendu).");
         return;
@@ -346,61 +314,19 @@ async function encryptMessage() {
     outputText.value = "Chiffrement en cours...";
     
     try {
-        // Générer une clé Fernet aléatoire
-        const fernetKeyResult = await runPythonCode('generate_key()');
-        if (!fernetKeyResult) {
-            throw new Error("Échec de la génération de la clé Fernet");
-        }
-        const fernetKey = fernetKeyResult;
-        
-        // Chiffrer le message avec la clé Fernet
-        const escapedText = escapeForPython(text);
-        const encryptedMessage = await runPythonCode(`encrypt_message("${fernetKey}", """${escapedText}""")`);
-        if (!encryptedMessage) {
-            throw new Error("Échec du chiffrement du message");
+        const result = await runPythonFunction('encrypt_hybrid', contact.publicKey, text);
+        if (!result) {
+            throw new Error("Échec du chiffrement hybride");
         }
         
-        // Chiffrer la clé Fernet avec la clé publique RSA de l'interlocuteur
-        const escapedFernetKey = escapeForPython(fernetKey);
-        const escapedPublicKey = escapeForPython(contact.publicKey);
+        // Ajouter le nom de l'interlocuteur au JSON
+        const parsedResult = JSON.parse(result);
+        parsedResult.from = contact.name;
         
-        const encryptedFernetKey = await runPythonCode(`
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import serialization, hashes
-import base64
-
-public_key_pem = """${escapedPublicKey}"""
-public_key = serialization.load_pem_public_key(public_key_pem.encode('utf-8'))
-
-fernet_key = "${escapedFernetKey}".encode('utf-8')
-
-ciphertext = public_key.encrypt(
-    fernet_key,
-    padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
-        label=None
-    )
-)
-
-base64.b64encode(ciphertext).decode('utf-8')
-`);
-        
-        if (!encryptedFernetKey) {
-            throw new Error("Échec du chiffrement de la clé Fernet");
-        }
-        
-        // Retourner un objet JSON
-        const result = JSON.stringify({
-            from: contact.name,
-            encrypted_message: encryptedMessage,
-            encrypted_fernet_key: encryptedFernetKey
-        }, null, 2);
-        
-        outputText.value = result;
+        outputText.value = JSON.stringify(parsedResult, null, 2);
         
     } catch (error) {
-        console.error("Erreur lors du chiffrement hybride :", error);
+        console.error("Erreur lors du chiffrement hybride:", error);
         outputText.value = "Erreur lors du chiffrement hybride: " + error.message;
     } finally {
         encryptBtn.disabled = false;
@@ -439,65 +365,14 @@ async function decryptMessage() {
     outputText.value = "Déchiffrement en cours...";
     
     try {
-        // Parser le JSON
-        let parsed;
-        try {
-            parsed = JSON.parse(text);
-        } catch (e) {
-            outputText.value = "Format de message invalide. Attendu un JSON avec 'encrypted_message' et 'encrypted_fernet_key'.";
-            return;
-        }
-        
-        const encryptedMessage = parsed.encrypted_message;
-        const encryptedFernetKey = parsed.encrypted_fernet_key;
-        
-        if (!encryptedMessage || !encryptedFernetKey) {
-            outputText.value = "Message invalide : 'encrypted_message' ou 'encrypted_fernet_key' manquant.";
-            return;
-        }
-        
-        // Déchiffrer la clé Fernet avec la clé privée RSA
-        const escapedEncryptedFernetKey = escapeForPython(encryptedFernetKey);
-        const escapedPrivateKey = escapeForPython(myPrivateKeyValue);
-        
-        const fernetKey = await runPythonCode(`
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import serialization, hashes
-import base64
-
-private_key_pem = """${escapedPrivateKey}"""
-private_key = serialization.load_pem_private_key(private_key_pem.encode('utf-8'), password=None)
-
-ciphertext = base64.b64decode("${escapedEncryptedFernetKey}".encode('utf-8'))
-
-fernet_key = private_key.decrypt(
-    ciphertext,
-    padding.OAEP(
-        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-        algorithm=hashes.SHA256(),
-        label=None
-    )
-)
-
-fernet_key.decode('utf-8')
-`);
-        
-        if (!fernetKey) {
-            throw new Error("Échec du déchiffrement de la clé Fernet");
-        }
-        
-        // Déchiffrer le message avec la clé Fernet
-        const escapedEncryptedMessage = escapeForPython(encryptedMessage);
-        const decryptedMessage = await runPythonCode(`decrypt_message("${fernetKey}", """${escapedEncryptedMessage}""")`);
-        
-        if (decryptedMessage) {
-            outputText.value = decryptedMessage;
+        const result = await runPythonFunction('decrypt_hybrid', myPrivateKeyValue, text);
+        if (result) {
+            outputText.value = result;
         } else {
-            throw new Error("Échec du déchiffrement du message");
+            throw new Error("Échec du déchiffrement hybride (clé ou message invalide)");
         }
-        
     } catch (error) {
-        console.error("Erreur lors du déchiffrement hybride :", error);
+        console.error("Erreur lors du déchiffrement hybride:", error);
         outputText.value = "Erreur lors du déchiffrement hybride: " + error.message;
     } finally {
         decryptBtn.disabled = false;
@@ -516,7 +391,6 @@ function downloadKey(key, keyType) {
         return;
     }
     
-    // Vérifier que la clé est au format PEM
     if (keyType === 'public' && !key.startsWith("-----BEGIN PUBLIC KEY-----")) {
         alert("La clé publique n'est pas au format PEM valide.");
         return;
@@ -550,7 +424,6 @@ function loadKeyFromFile(keyType, fileInputId) {
         reader.onload = function(e) {
             const key = e.target.result.trim();
             
-            // Vérifier le format PEM
             if (keyType === 'public' && !key.startsWith("-----BEGIN PUBLIC KEY-----")) {
                 alert("Le fichier chargé n'est pas une clé publique RSA valide (format PEM attendu).");
                 fileInput.value = "";
