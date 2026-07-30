@@ -31,7 +31,7 @@ async function initializePyodide() {
         await pyodide.loadPackage("cryptography");
         isPyodideReady = true;
 
-        // Charger le module Python
+        // Charger le module Python (Fernet)
         await loadPythonModule();
 
         loadingDiv.style.display = 'none';
@@ -49,7 +49,7 @@ async function initializePyodide() {
     }
 }
 
-// Charger le module Python
+// Charger le module Python (Fernet)
 async function loadPythonModule() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
@@ -74,8 +74,8 @@ function escapeForPython(str) {
 
 // Executer du code Python
 async function runPythonCode(code) {
-    if (!isPyodideReady || !pythonModuleLoaded) {
-        console.log("Pyodide ou module non pret");
+    if (!isPyodideReady) {
+        console.log("Pyodide non pret");
         return null;
     }
 
@@ -164,9 +164,8 @@ async function generateRSAKeys() {
     generateBtn.textContent = "Génération en cours...";
 
     try {
-        // Générer la paire de clés en une seule opération Python
+        // Générer la paire de clés RSA en une seule opération
         const pythonCode = `
-import json
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -179,40 +178,37 @@ private_key = rsa.generate_private_key(
 )
 public_key = private_key.public_key()
 
-# Sérialiser les clés en PEM
+# Sérialiser la clé publique en PEM
 public_pem = public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 ).decode('utf-8')
 
+# Sérialiser la clé privée en PEM (sans mot de passe)
 private_pem = private_key.private_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PrivateFormat.PKCS8,
     encryption_algorithm=serialization.NoEncryption()
 ).decode('utf-8')
 
-# Retourner sous forme de dictionnaire
-json.dumps({"public_key": public_pem, "private_key": private_pem})
+# Retourner sous forme de tuple
+(public_pem, private_pem)
 `;
         
         const result = await runPythonCode(pythonCode);
         
-        if (result) {
-            try {
-                const keys = JSON.parse(result);
-                myPublicKeyValue = keys.public_key;
-                myPrivateKeyValue = keys.private_key;
-                updateKeyStatus();
-                alert("Paire de clés RSA générée avec succès !");
-            } catch (e) {
-                throw new Error("Format de réponse invalide: " + e.message);
-            }
+        if (result && Array.isArray(result) && result.length === 2) {
+            myPublicKeyValue = result[0];
+            myPrivateKeyValue = result[1];
+            updateKeyStatus();
+            alert("Paire de clés RSA générée avec succès !");
         } else {
-            throw new Error("Aucun résultat retourné");
+            console.error("Résultat inattendu :", result);
+            throw new Error("Format de réponse invalide");
         }
     } catch (error) {
-        console.error("Erreur lors de la génération RSA :", error);
-        alert("Erreur lors de la génération des clés RSA: " + error.message);
+        console.error("Erreur détaillée lors de la génération RSA :", error);
+        alert("Erreur lors de la génération des clés RSA. Vérifiez la console pour plus de détails.");
     } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = originalText;
