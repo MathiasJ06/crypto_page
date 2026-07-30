@@ -28,6 +28,7 @@ async function initializePyodide() {
             }
         });
 
+        // Charger le package cryptography EN PREMIER
         await pyodide.loadPackage("cryptography");
         isPyodideReady = true;
 
@@ -151,7 +152,7 @@ function updateContactsList() {
 // FONCTIONS DE GESTION DES CLÉS
 // ====================
 
-// Générer une paire de clés RSA
+// Générer une paire de clés RSA (version corrigée et isolée)
 async function generateRSAKeys() {
     if (!isPyodideReady) {
         alert("Pyodide n'est pas encore prêt. Veuillez patienter...");
@@ -164,67 +165,71 @@ async function generateRSAKeys() {
     generateBtn.textContent = "Génération en cours...";
 
     try {
-        console.log("Début de la génération RSA...");
+        console.log("=== Début génération RSA ===");
         
-        // Vérifier que le package cryptography est chargé
-        const checkCrypto = await runPythonCode(`
-import sys
-'cryptography' in sys.modules
-`);
-        console.log("Package cryptography chargé :", checkCrypto);
-        
-        // Générer la paire de clés RSA en une seule opération
+        // Code Python MINIMAL pour générer une paire RSA
         const pythonCode = `
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
 
-print("Génération de la clé privée...")
+backend = default_backend()
 private_key = rsa.generate_private_key(
     public_exponent=65537,
     key_size=2048,
-    backend=default_backend()
+    backend=backend
 )
-print("Clé privée générée")
-
 public_key = private_key.public_key()
-print("Clé publique dérivée")
 
-print("Sérialisation de la clé publique...")
 public_pem = public_key.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo
 ).decode('utf-8')
-print("Clé publique sérialisée")
 
-print("Sérialisation de la clé privée...")
 private_pem = private_key.private_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PrivateFormat.PKCS8,
     encryption_algorithm=serialization.NoEncryption()
 ).decode('utf-8')
-print("Clé privée sérialisée")
 
 (public_pem, private_pem)
 `;
         
-        console.log("Exécution du code Python...");
+        console.log("Exécution du code RSA...");
         const result = await runPythonCode(pythonCode);
-        console.log("Résultat reçu :", result);
+        console.log("Résultat brut :", result);
         
-        if (result && Array.isArray(result) && result.length === 2) {
-            console.log("Clés générées avec succès !");
-            myPublicKeyValue = result[0];
-            myPrivateKeyValue = result[1];
-            updateKeyStatus();
-            alert("Paire de clés RSA générée avec succès !");
-        } else {
-            console.error("Résultat inattendu :", result);
-            throw new Error("Format de réponse invalide. Résultat : " + JSON.stringify(result));
+        if (!result) {
+            throw new Error("Aucun résultat retourné par Pyodide");
         }
+        
+        // Vérifier que le résultat est un tableau avec 2 éléments
+        if (!Array.isArray(result) || result.length !== 2) {
+            console.error("Format inattendu. Type:", typeof result, "Longueur:", result ? result.length : 'N/A');
+            throw new Error(`Format de réponse invalide. Type: ${typeof result}, Valeur: ${JSON.stringify(result)}`);
+        }
+        
+        // Vérifier que les clés ne sont pas vides
+        if (!result[0] || !result[1]) {
+            throw new Error("Une ou plusieurs clés sont vides");
+        }
+        
+        // Vérifier que les clés commencent par les en-têtes PEM
+        if (!result[0].startsWith("-----BEGIN PUBLIC KEY-----") || !result[1].startsWith("-----BEGIN PRIVATE KEY-----")) {
+            console.error("Clés mal formatées. Public:", result[0].substring(0, 50));
+            console.error("Clés mal formatées. Private:", result[1].substring(0, 50));
+            throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
+        }
+        
+        console.log("Clés RSA valides générées !");
+        myPublicKeyValue = result[0];
+        myPrivateKeyValue = result[1];
+        updateKeyStatus();
+        alert("Paire de clés RSA générée avec succès !");
+        
     } catch (error) {
-        console.error("Erreur détaillée lors de la génération RSA :", error);
-        alert("Erreur lors de la génération des clés RSA. Vérifiez la console pour plus de détails.\n\nErreur : " + error.message);
+        console.error("=== ERREUR RSA ===", error);
+        alert("Erreur lors de la génération des clés RSA.\n\nDétails: " + error.message + "\n\nVérifiez la console (F12) pour plus d'informations.");
     } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = originalText;
@@ -247,6 +252,12 @@ function addContact() {
     
     if (!tempContactPublicKey) {
         alert("Veuillez d'abord charger une clé publique pour cet interlocuteur.");
+        return;
+    }
+    
+    // Vérifier que la clé commence par l'en-tête PEM
+    if (!tempContactPublicKey.startsWith("-----BEGIN PUBLIC KEY-----")) {
+        alert("La clé publique chargée n'est pas une clé RSA valide (format PEM attendu).");
         return;
     }
     
@@ -284,9 +295,15 @@ function loadContactKeyFromFile() {
 
         const reader = new FileReader();
         reader.onload = function(e) {
-            tempContactPublicKey = e.target.result.trim();
+            const key = e.target.result.trim();
+            if (!key.startsWith("-----BEGIN PUBLIC KEY-----")) {
+                alert("Le fichier chargé n'est pas une clé publique RSA valide (format PEM attendu).");
+                fileInput.value = "";
+                return;
+            }
+            tempContactPublicKey = key;
             fileInput.value = "";
-            alert("Clé publique chargée. Cliquez sur 'Ajouter' pour enregistrer l'interlocuteur.");
+            alert("Clé publique RSA chargée. Cliquez sur 'Ajouter' pour enregistrer l'interlocuteur.");
         };
         reader.readAsText(file);
     };
@@ -357,7 +374,6 @@ public_key = serialization.load_pem_public_key(public_key_pem.encode('utf-8'))
 
 fernet_key = "${escapedFernetKey}".encode('utf-8')
 
-# Chiffrer avec RSA-OAEP
 ciphertext = public_key.encrypt(
     fernet_key,
     padding.OAEP(
@@ -367,7 +383,6 @@ ciphertext = public_key.encrypt(
     )
 )
 
-# Retourner en base64
 base64.b64encode(ciphertext).decode('utf-8')
 `);
         
@@ -375,7 +390,7 @@ base64.b64encode(ciphertext).decode('utf-8')
             throw new Error("Échec du chiffrement de la clé Fernet");
         }
         
-        // Retourner un objet JSON avec le message chiffré, la clé Fernet chiffrée et le nom de l'interlocuteur
+        // Retourner un objet JSON
         const result = JSON.stringify({
             from: contact.name,
             encrypted_message: encryptedMessage,
@@ -424,7 +439,7 @@ async function decryptMessage() {
     outputText.value = "Déchiffrement en cours...";
     
     try {
-        // Parser le JSON pour extraire le message chiffré et la clé Fernet chiffrée
+        // Parser le JSON
         let parsed;
         try {
             parsed = JSON.parse(text);
@@ -453,10 +468,8 @@ import base64
 private_key_pem = """${escapedPrivateKey}"""
 private_key = serialization.load_pem_private_key(private_key_pem.encode('utf-8'), password=None)
 
-# Décoder depuis base64
 ciphertext = base64.b64decode("${escapedEncryptedFernetKey}".encode('utf-8'))
 
-# Déchiffrer avec RSA-OAEP
 fernet_key = private_key.decrypt(
     ciphertext,
     padding.OAEP(
@@ -503,6 +516,16 @@ function downloadKey(key, keyType) {
         return;
     }
     
+    // Vérifier que la clé est au format PEM
+    if (keyType === 'public' && !key.startsWith("-----BEGIN PUBLIC KEY-----")) {
+        alert("La clé publique n'est pas au format PEM valide.");
+        return;
+    }
+    if (keyType === 'private' && !key.startsWith("-----BEGIN PRIVATE KEY-----")) {
+        alert("La clé privée n'est pas au format PEM valide.");
+        return;
+    }
+    
     const prefix = document.getElementById('key-prefix').value.trim() || "key";
     const name = `${prefix}_${keyType}_${new Date().toISOString().slice(0, 10)}`;
     const blob = new Blob([key], { type: 'text/plain' });
@@ -526,6 +549,19 @@ function loadKeyFromFile(keyType, fileInputId) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const key = e.target.result.trim();
+            
+            // Vérifier le format PEM
+            if (keyType === 'public' && !key.startsWith("-----BEGIN PUBLIC KEY-----")) {
+                alert("Le fichier chargé n'est pas une clé publique RSA valide (format PEM attendu).");
+                fileInput.value = "";
+                return;
+            }
+            if (keyType === 'private' && !key.startsWith("-----BEGIN PRIVATE KEY-----")) {
+                alert("Le fichier chargé n'est pas une clé privée RSA valide (format PEM attendu).");
+                fileInput.value = "";
+                return;
+            }
+            
             if (keyType === 'public') {
                 myPublicKeyValue = key;
             } else if (keyType === 'private') {
