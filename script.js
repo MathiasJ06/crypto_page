@@ -45,7 +45,7 @@ async function generateKey() {
     }
 
     const keyOutput = document.getElementById('key-output');
-    keyOutput.value = "Génération en cours...";
+    keyOutput.value = "Génération en cours..."; 
 
     try {
         // Exécuter du code Python pour générer une clé Fernet
