@@ -452,13 +452,14 @@ fernet_key.decode('utf-8')
 // ====================
 
 // Télécharger une clé sous forme de fichier
-function downloadKey(key, keyType, customName = null) {
+function downloadKey(key, keyType) {
     if (!key || key.length === 0) {
         alert("Aucune clé à télécharger.");
         return;
     }
     
-    const name = customName || `key_${keyType}_${new Date().toISOString().slice(0, 10)}`;
+    const prefix = document.getElementById('key-prefix').value.trim() || "key";
+    const name = `${prefix}_${keyType}_${new Date().toISOString().slice(0, 10)}`;
     const blob = new Blob([key], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -471,7 +472,7 @@ function downloadKey(key, keyType, customName = null) {
 }
 
 // Charger une clé depuis un fichier
-function loadKeyFromFile(keyType, fileInputId, targetVariable) {
+function loadKeyFromFile(keyType, fileInputId) {
     const fileInput = document.getElementById(fileInputId);
     fileInput.onchange = function(event) {
         const file = event.target.files[0];
@@ -534,16 +535,10 @@ function setupEventListeners() {
 
     // Onglet Gestion des clés
     document.getElementById('generate-rsa-keys-btn').addEventListener('click', generateRSAKeys);
-    document.getElementById('download-my-public-key-btn').addEventListener('click', () => {
-        const name = document.getElementById('my-public-key-name').value.trim() || "my_public_key";
-        downloadKey(myPublicKeyValue, 'public', name);
-    });
-    document.getElementById('download-my-private-key-btn').addEventListener('click', () => {
-        const name = document.getElementById('my-private-key-name').value.trim() || "my_private_key";
-        downloadKey(myPrivateKeyValue, 'private', name);
-    });
-    document.getElementById('load-my-public-key-btn').addEventListener('click', () => loadKeyFromFile('public', 'file-input-my-public', myPublicKeyValue));
-    document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private', myPrivateKeyValue));
+    document.getElementById('download-my-public-key-btn').addEventListener('click', () => downloadKey(myPublicKeyValue, 'public'));
+    document.getElementById('download-my-private-key-btn').addEventListener('click', () => downloadKey(myPrivateKeyValue, 'private'));
+    document.getElementById('load-my-public-key-btn').addEventListener('click', () => loadKeyFromFile('public', 'file-input-my-public'));
+    document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private'));
     document.getElementById('clear-my-public-key-btn').addEventListener('click', clearMyPublicKey);
     document.getElementById('clear-my-private-key-btn').addEventListener('click', clearMyPrivateKey);
 
