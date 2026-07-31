@@ -71,7 +71,7 @@ progress::-webkit-progress-value {
     border-radius: 3px;
 }
 
-/* Onglets */
+/* Onglets principaux */
 .tabs {
     display: flex;
     margin-bottom: 20px;
@@ -105,6 +105,44 @@ progress::-webkit-progress-value {
 }
 
 .tab-content.active {
+    display: block;
+}
+
+/* Sous-onglets (pour la gestion des clés) */
+.sub-tabs {
+    display: flex;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+}
+
+.sub-tab-button {
+    flex: 1;
+    padding: 10px 15px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.sub-tab-button:hover {
+    color: var(--text-primary);
+    background: var(--bg-section);
+}
+
+.sub-tab-button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.sub-tab-content {
+    display: none;
+}
+
+.sub-tab-content.active {
     display: block;
 }
 
@@ -249,7 +287,14 @@ button:disabled {
     flex-wrap: wrap;
 }
 
-/* Section des contacts */
+/* Section des interlocuteurs */
+.interlocutor-key-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Section des contacts (obsolète, mais gardée pour compatibilité) */
 .contacts-section {
     display: flex;
     flex-direction: column;
@@ -268,7 +313,7 @@ button:disabled {
     flex-wrap: wrap;
 }
 
-/* Liste des contacts */
+/* Liste des contacts (obsolète, mais gardée pour compatibilité) */
 .contacts-list {
     display: flex;
     flex-direction: column;

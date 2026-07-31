@@ -17,7 +17,7 @@
         </div>
 
         <div class="content" id="content" style="display: none;">
-            <!-- Onglets -->
+            <!-- Onglets principaux -->
             <div class="tabs">
                 <button class="tab-button active" data-tab="keys">🔑 Gestion des clés</button>
                 <button class="tab-button" data-tab="encrypt">🔒 Chiffrement</button>
@@ -26,40 +26,52 @@
 
             <!-- Onglet Gestion des clés -->
             <div class="tab-content active" id="keys-tab">
-                <div class="section">
-                    <h3>Ma paire de clés RSA</h3>
-                    <div class="my-keys-section">
-                        <div class="key-prefix-input">
-                            <input type="text" id="key-prefix" placeholder="Préfixe des clés (ex: mon_nom)" />
+                <!-- Sous-onglets pour la gestion des clés -->
+                <div class="sub-tabs">
+                    <button class="sub-tab-button active" data-sub-tab="my-keys">Mes clés RSA</button>
+                    <button class="sub-tab-button" data-sub-tab="interlocutor-keys">Clés de l'interlocuteur</button>
+                </div>
+
+                <!-- Sous-onglet Mes clés RSA -->
+                <div class="sub-tab-content active" id="my-keys-subtab">
+                    <div class="section">
+                        <h3>Générer ma paire de clés RSA</h3>
+                        <div class="my-keys-section">
+                            <div class="key-prefix-input">
+                                <input type="text" id="key-prefix" placeholder="Préfixe des clés (ex: mon_nom)" />
+                            </div>
+                            <button id="generate-rsa-keys-btn" class="primary-btn">Générer ma paire RSA</button>
                         </div>
-                        <button id="generate-rsa-keys-btn" class="primary-btn">Générer ma paire RSA</button>
-                    </div>
-                    <div class="key-status">
-                        <div class="key-status-item">
-                            <span>Clé publique : </span>
-                            <span id="public-key-status">❌ Non chargée</span>
+                        <div class="key-status">
+                            <div class="key-status-item">
+                                <span>Clé publique : </span>
+                                <span id="public-key-status">❌ Non chargée</span>
+                            </div>
+                            <div class="key-status-item">
+                                <span>Clé privée : </span>
+                                <span id="private-key-status">❌ Non chargée</span>
+                            </div>
                         </div>
-                        <div class="key-status-item">
-                            <span>Clé privée : </span>
-                            <span id="private-key-status">❌ Non chargée</span>
+                        <div class="key-buttons">
+                            <button id="download-my-public-key-btn">Télécharger clé publique</button>
+                            <button id="download-my-private-key-btn">Télécharger clé privée</button>
+                            <button id="load-my-public-key-btn">Charger clé publique</button>
+                            <button id="load-my-private-key-btn">Charger clé privée</button>
+                            <button id="clear-keys-btn" class="primary-btn">Effacer les clés</button>
                         </div>
-                    </div>
-                    <div class="key-buttons">
-                        <button id="download-my-public-key-btn">Télécharger clé publique</button>
-                        <button id="download-my-private-key-btn">Télécharger clé privée</button>
-                        <button id="load-my-public-key-btn">Charger clé publique</button>
-                        <button id="load-my-private-key-btn">Charger clé privée</button>
-                        <button id="clear-keys-btn" class="primary-btn">Effacer les clés</button>
                     </div>
                 </div>
 
-                <div class="section">
-                    <h3>Clé publique de l'interlocuteur</h3>
-                    <div class="interlocutor-key-section">
-                        <button id="load-interlocutor-key-btn" class="primary-btn">Charger clé publique de l'interlocuteur</button>
-                        <div class="key-status-item">
-                            <span>Clé publique interlocuteur : </span>
-                            <span id="interlocutor-key-status">❌ Non chargée</span>
+                <!-- Sous-onglet Clés de l'interlocuteur -->
+                <div class="sub-tab-content" id="interlocutor-keys-subtab">
+                    <div class="section">
+                        <h3>Charger la clé publique de l'interlocuteur</h3>
+                        <div class="interlocutor-key-section">
+                            <button id="load-interlocutor-key-btn" class="primary-btn">Charger clé publique de l'interlocuteur</button>
+                            <div class="key-status-item">
+                                <span>Clé publique interlocuteur : </span>
+                                <span id="interlocutor-key-status">❌ Non chargée</span>
+                            </div>
                         </div>
                     </div>
                 </div>

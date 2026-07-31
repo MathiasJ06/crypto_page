@@ -384,7 +384,7 @@ function clearKeys() {
 }
 
 // ====================
-// GESTION DES ONGLETS
+// GESTION DES ONGLETS PRINCIPAUX
 // ====================
 
 function setupTabs() {
@@ -405,13 +405,35 @@ function setupTabs() {
 }
 
 // ====================
+// GESTION DES SOUS-ONGLETS (Gestion des clés)
+// ====================
+
+function setupSubTabs() {
+    const subTabButtons = document.querySelectorAll('.sub-tab-button');
+    const subTabContents = document.querySelectorAll('.sub-tab-content');
+
+    subTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const subTabId = button.dataset.subTab;
+
+            subTabButtons.forEach(btn => btn.classList.remove('active'));
+            subTabContents.forEach(content => content.classList.remove('active'));
+
+            button.classList.add('active');
+            document.getElementById(`${subTabId}-subtab`).classList.add('active');
+        });
+    });
+}
+
+// ====================
 // CONFIGURATION DES ÉCOUTEURS
 // ====================
 
 function setupEventListeners() {
     setupTabs();
+    setupSubTabs();
 
-    // Onglet Gestion des clés
+    // Onglet Gestion des clés - Mes clés RSA
     document.getElementById('generate-rsa-keys-btn').addEventListener('click', generateRSAKeys);
     document.getElementById('download-my-public-key-btn').addEventListener('click', () => downloadKey(myPublicKeyValue, 'public'));
     document.getElementById('download-my-private-key-btn').addEventListener('click', () => downloadKey(myPrivateKeyValue, 'private'));
@@ -419,7 +441,7 @@ function setupEventListeners() {
     document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private'));
     document.getElementById('clear-keys-btn').addEventListener('click', clearKeys);
 
-    // Clé publique de l'interlocuteur
+    // Onglet Gestion des clés - Clés de l'interlocuteur
     document.getElementById('load-interlocutor-key-btn').addEventListener('click', loadInterlocutorKeyFromFile);
 
     // Onglet Chiffrement
