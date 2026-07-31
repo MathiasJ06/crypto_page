@@ -28,25 +28,12 @@
             <div class="tab-content active" id="keys-tab">
                 <!-- Sous-onglets pour la gestion des clés -->
                 <div class="sub-tabs">
-                    <button class="sub-tab-button active" data-sub-tab="create-rsa">Création de paire RSA</button>
-                    <button class="sub-tab-button" data-sub-tab="load-keys">Chargement des clés</button>
-                </div>
-
-                <!-- Sous-onglet Création de paire RSA -->
-                <div class="sub-tab-content active" id="create-rsa-subtab">
-                    <div class="section">
-                        <h3>Générer une nouvelle paire de clés RSA</h3>
-                        <div class="create-rsa-section">
-                            <div class="key-prefix-input">
-                                <input type="text" id="key-prefix" placeholder="Préfixe des clés (ex: mon_nom)" />
-                            </div>
-                            <button id="generate-rsa-keys-btn" class="primary-btn">Générer paire RSA</button>
-                        </div>
-                    </div>
+                    <button class="sub-tab-button active" data-sub-tab="load-keys">Chargement des clés</button>
+                    <button class="sub-tab-button" data-sub-tab="create-rsa">Création de paire RSA</button>
                 </div>
 
                 <!-- Sous-onglet Chargement des clés -->
-                <div class="sub-tab-content" id="load-keys-subtab">
+                <div class="sub-tab-content active" id="load-keys-subtab">
                     <div class="section">
                         <h3>Mes clés</h3>
                         <div class="my-keys-section">
@@ -78,6 +65,22 @@
                                 <span id="interlocutor-key-status">❌ Non chargée</span>
                             </div>
                             <button id="load-interlocutor-key-btn" class="primary-btn">Charger clé publique de l'interlocuteur</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sous-onglet Création de paire RSA -->
+                <div class="sub-tab-content" id="create-rsa-subtab">
+                    <div class="section">
+                        <h3>Générer une nouvelle paire de clés RSA</h3>
+                        <div class="create-rsa-section">
+                            <div class="key-prefix-input">
+                                <input type="text" id="key-prefix" placeholder="Préfixe des clés (ex: mon_nom)" />
+                            </div>
+                            <button id="generate-rsa-keys-btn" class="primary-btn">Générer paire RSA</button>
+                        </div>
+                        <div class="key-buttons">
+                            <button id="download-rsa-pair-btn" class="primary-btn" disabled>Télécharger la paire RSA</button>
                         </div>
                     </div>
                 </div>
