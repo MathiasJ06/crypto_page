@@ -170,9 +170,9 @@ async function generateRSAKeys() {
         myPrivateKeyValue = keys.private_key;
         updateKeyStatus();
         
-        // Activer les boutons de téléchargement des clés
-        document.getElementById('download-rsa-public-key-btn').disabled = false;
-        document.getElementById('download-rsa-private-key-btn').disabled = false;
+        // Activer les boutons de téléchargement des clés (dans le premier sous-onglet)
+        document.getElementById('download-my-public-key-btn').disabled = false;
+        document.getElementById('download-my-private-key-btn').disabled = false;
         
         alert("Paire de clés RSA générée avec succès ! Vous pouvez maintenant les télécharger.");
         
@@ -371,6 +371,12 @@ function loadKeyFromFile(keyType, fileInputId) {
                 myPrivateKeyValue = key;
             }
             updateKeyStatus();
+            
+            // Activer les boutons de téléchargement si au moins une clé est chargée
+            if (myPublicKeyValue || myPrivateKeyValue) {
+                document.getElementById('download-my-public-key-btn').disabled = !myPublicKeyValue;
+                document.getElementById('download-my-private-key-btn').disabled = !myPrivateKeyValue;
+            }
             fileInput.value = "";
         };
         reader.readAsText(file);
@@ -385,8 +391,8 @@ function clearKeys() {
         myPrivateKeyValue = "";
         updateKeyStatus();
         // Désactiver les boutons de téléchargement des clés
-        document.getElementById('download-rsa-public-key-btn').disabled = true;
-        document.getElementById('download-rsa-private-key-btn').disabled = true;
+        document.getElementById('download-my-public-key-btn').disabled = true;
+        document.getElementById('download-my-private-key-btn').disabled = true;
     }
 }
 
@@ -440,10 +446,12 @@ function setupEventListeners() {
     setupTabs();
     setupSubTabs();
 
+    // Désactiver les boutons de téléchargement des clés au chargement
+    document.getElementById('download-my-public-key-btn').disabled = true;
+    document.getElementById('download-my-private-key-btn').disabled = true;
+
     // Onglet Gestion des clés - Création de paire RSA
     document.getElementById('generate-rsa-keys-btn').addEventListener('click', generateRSAKeys);
-    document.getElementById('download-rsa-public-key-btn').addEventListener('click', () => downloadKey(myPublicKeyValue, 'public'));
-    document.getElementById('download-rsa-private-key-btn').addEventListener('click', () => downloadKey(myPrivateKeyValue, 'private'));
 
     // Onglet Gestion des clés - Chargement des clés
     document.getElementById('download-my-public-key-btn').addEventListener('click', () => downloadKey(myPublicKeyValue, 'public'));
