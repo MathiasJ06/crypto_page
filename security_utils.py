@@ -235,6 +235,6 @@ def is_rsa_key_size_secure(key_size: int) -> bool:
         key_size: Taille de la clé en bits.
     
     Returns:
-        bool: True si la taille est ≥ 2048 bits (recommandé: ≥ 3072).
+        bool: True si la taille est >= 2048 bits (recommandé: >= 3072).
     """
     return key_size >= MIN_RSA_KEY_SIZE

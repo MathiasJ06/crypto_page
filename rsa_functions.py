@@ -52,7 +52,7 @@ def generate_rsa_keys(
     
     Args:
         key_size: Taille de la clé RSA en bits (par défaut 3072).
-                  Doit être ≥ 2048 (recommandé: 3072 ou 4096).
+                  Doit être >= 2048 (recommandé: 3072 ou 4096).
         password: Mot de passe pour chiffrer la clé privée (optionnel).
                   Si None, la clé privée n'est pas chiffrée (déconseillé pour la production).
     
@@ -65,7 +65,7 @@ def generate_rsa_keys(
     # Valider la taille de la clé
     if key_size < MIN_RSA_KEY_SIZE:
         raise ValueError(
-            f"La taille de la clé RSA doit être ≥ {MIN_RSA_KEY_SIZE} bits. "
+            f"La taille de la clé RSA doit être >= {MIN_RSA_KEY_SIZE} bits. "
             f"Recommandé: {RECOMMENDED_RSA_KEY_SIZE} bits."
         )
     
@@ -253,7 +253,7 @@ def decrypt_hybrid(
             backend=backend
         )
         
-        # Vérifier la taille de la clé RSA (doit être ≥ 2048 bits)
+        # Vérifier la taille de la clé RSA (doit être >= 2048 bits)
         key_size = private_key.key_size
         if not is_rsa_key_size_secure(key_size):
             raise ValueError(

@@ -49,7 +49,7 @@ def generate_key_from_password(
     Génère une clé Fernet à partir d'un mot de passe en utilisant PBKDF2.
     
     Args:
-        password: Mot de passe (string). Doit être long et complexe (≥ 8 caractères).
+        password: Mot de passe (string). Doit être long et complexe (>= 8 caractères).
         salt: Sel aléatoire (bytes). Si None, un sel est généré.
         iterations: Nombre d'itérations PBKDF2 (par défaut 100_000).
     
