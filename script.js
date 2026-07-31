@@ -169,7 +169,16 @@ async function generateRSAKeys() {
         myPublicKeyValue = keys.public_key;
         myPrivateKeyValue = keys.private_key;
         updateKeyStatus();
-        alert("Paire de clés RSA générée avec succès !");
+        
+        // Basculer automatiquement vers l'onglet "Chargement des clés" après génération
+        const subTabButtons = document.querySelectorAll('.sub-tab-button');
+        const subTabContents = document.querySelectorAll('.sub-tab-content');
+        subTabButtons.forEach(btn => btn.classList.remove('active'));
+        subTabContents.forEach(content => content.classList.remove('active'));
+        document.querySelector('.sub-tab-button[data-sub-tab="load-keys"]').classList.add('active');
+        document.getElementById('load-keys-subtab').classList.add('active');
+        
+        alert("Paire de clés RSA générée avec succès ! Vous pouvez maintenant les télécharger ou les utiliser.");
         
     } catch (error) {
         console.error("Erreur lors de la génération RSA:", error);
@@ -202,7 +211,7 @@ function loadInterlocutorKeyFromFile() {
             interlocutorPublicKeyValue = key;
             fileInput.value = "";
             updateKeyStatus();
-            alert("Clé publique RSA de l'interlocuteur chargée.");
+            alert("Clé publique RSA de l'interlocuteur chargée avec succès.");
         };
         reader.readAsText(file);
     };
@@ -378,7 +387,6 @@ function clearKeys() {
     if (confirm("Voulez-vous vraiment effacer toutes vos clés ?")) {
         myPublicKeyValue = "";
         myPrivateKeyValue = "";
-        interlocutorPublicKeyValue = "";
         updateKeyStatus();
     }
 }
@@ -433,15 +441,15 @@ function setupEventListeners() {
     setupTabs();
     setupSubTabs();
 
-    // Onglet Gestion des clés - Mes clés RSA
+    // Onglet Gestion des clés - Création de paire RSA
     document.getElementById('generate-rsa-keys-btn').addEventListener('click', generateRSAKeys);
+
+    // Onglet Gestion des clés - Chargement des clés
     document.getElementById('download-my-public-key-btn').addEventListener('click', () => downloadKey(myPublicKeyValue, 'public'));
     document.getElementById('download-my-private-key-btn').addEventListener('click', () => downloadKey(myPrivateKeyValue, 'private'));
     document.getElementById('load-my-public-key-btn').addEventListener('click', () => loadKeyFromFile('public', 'file-input-my-public'));
     document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private'));
     document.getElementById('clear-keys-btn').addEventListener('click', clearKeys);
-
-    // Onglet Gestion des clés - Clés de l'interlocuteur
     document.getElementById('load-interlocutor-key-btn').addEventListener('click', loadInterlocutorKeyFromFile);
 
     // Onglet Chiffrement
