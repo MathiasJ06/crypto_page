@@ -6,12 +6,7 @@ let pythonModuleLoaded = false;
 // Stockage des clés
 let myPublicKeyValue = "";
 let myPrivateKeyValue = "";
-
-// Liste des contacts (interlocuteurs) : { name: string, publicKey: string }
-let contacts = [];
-
-// Variable temporaire pour stocker la clé publique chargée avant d'ajouter un contact
-let tempContactPublicKey = "";
+let interlocutorPublicKeyValue = "";
 
 // Initialiser Pyodide
 async function initializePyodide() {
@@ -65,8 +60,13 @@ async function loadPythonModules() {
         const rsaCode = await rsaResponse.text();
         await pyodide.runPythonAsync(rsaCode);
         
+        // Charger les utilitaires de sécurité
+        const securityResponse = await fetch('security_utils.py');
+        const securityCode = await securityResponse.text();
+        await pyodide.runPythonAsync(securityCode);
+        
         pythonModuleLoaded = true;
-        console.log("Modules Python (Fernet + RSA) chargés");
+        console.log("Modules Python (Fernet + RSA + Security) chargés");
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
     }
@@ -109,59 +109,16 @@ async function runPythonFunction(functionName, ...args) {
 function updateKeyStatus() {
     const publicKeyStatus = document.getElementById('public-key-status');
     const privateKeyStatus = document.getElementById('private-key-status');
+    const interlocutorKeyStatus = document.getElementById('interlocutor-key-status');
     
     publicKeyStatus.textContent = myPublicKeyValue ? "✅ Chargée" : "❌ Non chargée";
     publicKeyStatus.className = myPublicKeyValue ? "ok" : "error";
     
     privateKeyStatus.textContent = myPrivateKeyValue ? "✅ Chargée" : "❌ Non chargée";
     privateKeyStatus.className = myPrivateKeyValue ? "ok" : "error";
-}
-
-// Mettre à jour la liste des contacts dans les selects
-function updateContactsSelect() {
-    const encryptSelect = document.getElementById('encrypt-contact-select');
-    const decryptSelect = document.getElementById('decrypt-contact-select');
     
-    let options = '<option value="">-- Sélectionner un interlocuteur --</option>';
-    
-    contacts.forEach((contact, index) => {
-        options += `<option value="${index}">${contact.name}</option>`;
-    });
-    
-    encryptSelect.innerHTML = options;
-    decryptSelect.innerHTML = options;
-}
-
-// Mettre à jour l'affichage de la liste des contacts
-function updateContactsList() {
-    const contactsList = document.getElementById('contacts-list');
-    contactsList.innerHTML = '';
-    
-    contacts.forEach((contact, index) => {
-        const contactItem = document.createElement('div');
-        contactItem.className = 'contact-item';
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'contact-name';
-        nameSpan.textContent = contact.name;
-        
-        const statusSpan = document.createElement('span');
-        statusSpan.className = 'contact-status';
-        statusSpan.textContent = "✅";
-        statusSpan.title = "Clé chargée";
-        
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-contact-btn';
-        removeBtn.textContent = 'Supprimer';
-        removeBtn.addEventListener('click', () => removeContact(index));
-        
-        contactItem.appendChild(nameSpan);
-        contactItem.appendChild(statusSpan);
-        contactItem.appendChild(removeBtn);
-        contactsList.appendChild(contactItem);
-    });
-    
-    updateContactsSelect();
+    interlocutorKeyStatus.textContent = interlocutorPublicKeyValue ? "✅ Chargée" : "❌ Non chargée";
+    interlocutorKeyStatus.className = interlocutorPublicKeyValue ? "ok" : "error";
 }
 
 // ====================
@@ -224,57 +181,12 @@ async function generateRSAKeys() {
 }
 
 // ====================
-// FONCTIONS DE GESTION DES CONTACTS
+// FONCTIONS DE GESTION DE LA CLÉ DE L'INTERLOCUTEUR
 // ====================
 
-// Ajouter un contact
-function addContact() {
-    const nameInput = document.getElementById('contact-name');
-    const name = nameInput.value.trim();
-    
-    if (!name) {
-        alert("Veuillez entrer un nom pour l'interlocuteur.");
-        return;
-    }
-    
-    if (!tempContactPublicKey) {
-        alert("Veuillez d'abord charger une clé publique pour cet interlocuteur.");
-        return;
-    }
-    
-    if (!tempContactPublicKey.startsWith("-----BEGIN PUBLIC KEY-----")) {
-        alert("La clé publique chargée n'est pas une clé RSA valide (format PEM attendu).");
-        return;
-    }
-    
-    // Vérifier si le contact existe déjà
-    const existingContactIndex = contacts.findIndex(c => c.name === name);
-    if (existingContactIndex !== -1) {
-        if (confirm(`Un contact avec le nom "${name}" existe déjà. Voulez-vous le remplacer ?`)) {
-            contacts[existingContactIndex].publicKey = tempContactPublicKey;
-        }
-    } else {
-        contacts.push({ name, publicKey: tempContactPublicKey });
-    }
-    
-    // Réinitialiser les champs
-    nameInput.value = "";
-    tempContactPublicKey = "";
-    
-    updateContactsList();
-}
-
-// Supprimer un contact
-function removeContact(index) {
-    if (confirm("Voulez-vous vraiment supprimer ce contact ?")) {
-        contacts.splice(index, 1);
-        updateContactsList();
-    }
-}
-
-// Charger une clé de contact depuis un fichier
-function loadContactKeyFromFile() {
-    const fileInput = document.getElementById('file-input-contact');
+// Charger la clé publique de l'interlocuteur depuis un fichier
+function loadInterlocutorKeyFromFile() {
+    const fileInput = document.getElementById('file-input-interlocutor');
     fileInput.onchange = function(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -287,9 +199,10 @@ function loadContactKeyFromFile() {
                 fileInput.value = "";
                 return;
             }
-            tempContactPublicKey = key;
+            interlocutorPublicKeyValue = key;
             fileInput.value = "";
-            alert("Clé publique RSA chargée. Cliquez sur 'Ajouter' pour enregistrer l'interlocuteur.");
+            updateKeyStatus();
+            alert("Clé publique RSA de l'interlocuteur chargée.");
         };
         reader.readAsText(file);
     };
@@ -302,26 +215,23 @@ function loadContactKeyFromFile() {
 
 // Chiffrer un message (hybride : Fernet + RSA)
 async function encryptMessage() {
-    const contactSelect = document.getElementById('encrypt-contact-select');
     const inputText = document.getElementById('encrypt-input');
     const outputText = document.getElementById('encrypt-output');
     
-    const selectedIndex = contactSelect.value;
     const text = inputText.value;
-    
-    if (!selectedIndex && selectedIndex !== "0") {
-        outputText.value = "Veuillez sélectionner un interlocuteur.";
-        return;
-    }
     
     if (!text) {
         outputText.value = "";
         return;
     }
     
-    const contact = contacts[parseInt(selectedIndex)];
-    if (!contact || !contact.publicKey) {
-        outputText.value = "Clé publique de l'interlocuteur introuvable.";
+    if (!interlocutorPublicKeyValue) {
+        outputText.value = "Veuillez d'abord charger la clé publique de votre interlocuteur.";
+        return;
+    }
+    
+    if (!myPrivateKeyValue) {
+        outputText.value = "Veuillez d'abord générer ou charger votre clé privée.";
         return;
     }
     
@@ -332,7 +242,7 @@ async function encryptMessage() {
     outputText.value = "Chiffrement en cours...";
     
     try {
-        const result = await runPythonFunction('encrypt_hybrid', contact.publicKey, text);
+        const result = await runPythonFunction('encrypt_hybrid', interlocutorPublicKeyValue, text);
         if (!result) {
             throw new Error("Échec du chiffrement hybride");
         }
@@ -344,9 +254,6 @@ async function encryptMessage() {
         } catch (e) {
             throw new Error("Résultat du chiffrement invalide: " + result);
         }
-        
-        // Ajouter le nom de l'interlocuteur
-        encryptedData.from = contact.name;
         
         outputText.value = JSON.stringify(encryptedData, null, 2);
         
@@ -361,17 +268,10 @@ async function encryptMessage() {
 
 // Déchiffrer un message (hybride : RSA + Fernet)
 async function decryptMessage() {
-    const contactSelect = document.getElementById('decrypt-contact-select');
     const inputText = document.getElementById('decrypt-input');
     const outputText = document.getElementById('decrypt-output');
     
-    const selectedIndex = contactSelect.value;
     const text = inputText.value.trim();
-    
-    if (!selectedIndex && selectedIndex !== "0") {
-        outputText.value = "Veuillez sélectionner un interlocuteur.";
-        return;
-    }
     
     if (!text) {
         outputText.value = "";
@@ -478,6 +378,7 @@ function clearKeys() {
     if (confirm("Voulez-vous vraiment effacer toutes vos clés ?")) {
         myPublicKeyValue = "";
         myPrivateKeyValue = "";
+        interlocutorPublicKeyValue = "";
         updateKeyStatus();
     }
 }
@@ -518,9 +419,8 @@ function setupEventListeners() {
     document.getElementById('load-my-private-key-btn').addEventListener('click', () => loadKeyFromFile('private', 'file-input-my-private'));
     document.getElementById('clear-keys-btn').addEventListener('click', clearKeys);
 
-    // Gestion des contacts
-    document.getElementById('add-contact-btn').addEventListener('click', addContact);
-    document.getElementById('load-contact-key-btn').addEventListener('click', loadContactKeyFromFile);
+    // Clé publique de l'interlocuteur
+    document.getElementById('load-interlocutor-key-btn').addEventListener('click', loadInterlocutorKeyFromFile);
 
     // Onglet Chiffrement
     document.getElementById('encrypt-btn').addEventListener('click', encryptMessage);
