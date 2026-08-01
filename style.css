@@ -280,6 +280,13 @@ button:disabled {
     flex: 1;
 }
 
+/* Section pour le téléchargement des clés RSA */
+.download-keys-section {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 /* Section pour le chargement des clés */
 .my-keys-section {
     display: flex;
