@@ -69,6 +69,7 @@ async function loadPythonModules() {
         console.log("Modules Python (Fernet + RSA + Security) chargés");
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
+        throw error; // Propager l'erreur pour bloquer le chargement
     }
 }
 
@@ -83,9 +84,13 @@ function escapeForPython(str) {
 
 // Executer une fonction Python
 async function runPythonFunction(functionName, ...args) {
-    if (!isPyodideReady || !pythonModuleLoaded) {
-        console.log("Pyodide ou modules non prêts");
-        return null;
+    if (!isPyodideReady) {
+        console.error("Pyodide n'est pas prêt");
+        throw new Error("Pyodide n'est pas initialisé. Veuillez recharger la page.");
+    }
+    if (!pythonModuleLoaded) {
+        console.error("Les modules Python ne sont pas chargés");
+        throw new Error("Les modules Python ne sont pas chargés. Veuillez recharger la page.");
     }
 
     try {
