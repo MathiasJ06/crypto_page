@@ -50,6 +50,11 @@ async function loadPythonModules() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
     try {
+        // Charger les utilitaires de sécurité (doit être chargé avant les autres modules)
+        const securityResponse = await fetch('security_utils.py');
+        const securityCode = await securityResponse.text();
+        await pyodide.runPythonAsync(securityCode);
+        
         // Charger le module Fernet
         const fernetResponse = await fetch('generate_fernet_key.py');
         const fernetCode = await fernetResponse.text();
@@ -59,11 +64,6 @@ async function loadPythonModules() {
         const rsaResponse = await fetch('rsa_functions.py');
         const rsaCode = await rsaResponse.text();
         await pyodide.runPythonAsync(rsaCode);
-        
-        // Charger les utilitaires de sécurité
-        const securityResponse = await fetch('security_utils.py');
-        const securityCode = await securityResponse.text();
-        await pyodide.runPythonAsync(securityCode);
         
         pythonModuleLoaded = true;
         console.log("Modules Python (Fernet + RSA + Security) chargés");
