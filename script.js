@@ -27,6 +27,11 @@ async function initializePyodide() {
         console.log("Chargement du package cryptography...");
         await pyodide.loadPackage("cryptography");
         console.log("Package cryptography chargé avec succès");
+        
+        // Charger le package json (nécessaire pour les fonctions Python)
+        console.log("Chargement du package json...");
+        await pyodide.loadPackage("json");
+        console.log("Package json chargé avec succès");
         isPyodideReady = true;
 
         // Charger les modules Python (Fernet + RSA)
@@ -52,35 +57,31 @@ async function loadPythonModules() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
     try {
-        // Charger les utilitaires de sécurité (doit être chargé avant les autres modules)
-        const securityResponse = await fetch('security_utils.py');
-        const securityCode = await securityResponse.text();
-        console.log("Chargement de security_utils.py...");
-        await pyodide.runPythonAsync(securityCode);
-        console.log("security_utils.py chargé avec succès");
-        
-        // Charger le module Fernet
-        const fernetResponse = await fetch('generate_fernet_key.py');
-        const fernetCode = await fernetResponse.text();
-        console.log("Chargement de generate_fernet_key.py...");
-        await pyodide.runPythonAsync(fernetCode);
-        console.log("generate_fernet_key.py chargé avec succès");
-        
-        // Charger le module RSA
-        const rsaResponse = await fetch('rsa_functions.py');
-        const rsaCode = await rsaResponse.text();
-        console.log("Chargement de rsa_functions.py...");
-        await pyodide.runPythonAsync(rsaCode);
-        console.log("rsa_functions.py chargé avec succès");
+        // Charger le module complet qui contient tout le code nécessaire
+        const completeResponse = await fetch('crypto_complete.py');
+        const completeCode = await completeResponse.text();
+        console.log("Chargement de crypto_complete.py...");
+        await pyodide.runPythonAsync(completeCode);
+        console.log("crypto_complete.py chargé avec succès");
         
         pythonModuleLoaded = true;
         console.log("Modules Python (Fernet + RSA + Security) chargés");
         console.log("Vérification: generate_rsa_keys est-elle définie ?");
         try {
-            const testResult = await pyodide.runPythonAsync("callable('generate_rsa_keys')");
+            const testResult = await pyodide.runPythonAsync("callable(generate_rsa_keys)");
             console.log("generate_rsa_keys est définie:", testResult);
         } catch (e) {
             console.error("Erreur lors de la vérification de generate_rsa_keys:", e);
+        }
+        
+        // Vérification supplémentaire des fonctions disponibles
+        try {
+            const functions = await pyodide.runPythonAsync(
+                "[name for name in dir() if callable(globals().get(name)) and not name.startswith('_')]"
+            );
+            console.log("Fonctions Python disponibles:", functions);
+        } catch (e) {
+            console.error("Erreur lors de la liste des fonctions:", e);
         }
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
