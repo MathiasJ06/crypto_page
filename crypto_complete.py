@@ -7,7 +7,11 @@ Toutes les dépendances externes (cryptography) sont chargées via Pyodide.
 Fonctions exposées au niveau global pour JavaScript :
 - generate_rsa_keys()
 - encrypt_hybrid(public_key_pem, message)
-- decrypt_hybrid(private_key_pem, encrypted_data_json)
+- decrypt_hybrid(private_key_pem, encrypted_data)
+
+Format de sortie :
+- Le message chiffré est encodé en Base64 sous la forme : encrypted_message|encrypted_fernet_key
+- Puis le tout est encodé en Base64 une seconde fois pour un transport propre
 """
 
 # ============================================================================
@@ -35,6 +39,8 @@ MIN_RSA_KEY_SIZE = 2048
 RECOMMENDED_RSA_KEY_SIZE = 3072
 FERNET_KEY_SIZE = 32
 backend = default_backend()
+
+SEPARATOR = "|"  # Séparateur pour le format binaire
 
 
 # ============================================================================
@@ -247,11 +253,13 @@ def generate_rsa_keys(
 def encrypt_hybrid(
     public_key_pem: str,
     message: str,
-    include_nonce: bool = True
+    include_nonce: bool = False  # Désactivé par défaut pour plus de discrétion
 ) -> str:
     """
     Chiffre un message avec chiffrement hybride (Fernet + RSA).
-    Retourne un JSON avec encrypted_message, encrypted_fernet_key, nonce, timestamp.
+    
+    Format de sortie : Base64(encrypted_message + SEPARATOR + encrypted_fernet_key_b64)
+    Cela cache complètement la structure du chiffrement.
     """
     if not public_key_pem or not isinstance(public_key_pem, str):
         raise ValueError("La clé publique RSA est manquante ou invalide.")
@@ -283,63 +291,46 @@ def encrypt_hybrid(
         )
     )
     
-    result = {
-        "encrypted_message": encrypted_message,
-        "encrypted_fernet_key": base64.b64encode(ciphertext).decode('utf-8'),
-    }
+    # Encoder la clé RSA chiffrée en Base64
+    encrypted_fernet_key_b64 = base64.b64encode(ciphertext).decode('utf-8')
     
-    if include_nonce:
-        result["nonce"] = generate_nonce()
+    # Combiner les deux parties avec un séparateur
+    combined = f"{encrypted_message}{SEPARATOR}{encrypted_fernet_key_b64}"
     
-    result["timestamp"] = int(time.time())
-    
-    # Encoder tout le JSON en Base64 pour rendre le format illisible
-    json_data = json.dumps(result)
-    return base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
+    # Encoder le tout en Base64 pour un transport propre
+    return base64.b64encode(combined.encode('utf-8')).decode('utf-8')
 
 
 def decrypt_hybrid(
     private_key_pem: str,
-    encrypted_data_json: str,
+    encrypted_data: str,
     password: str = None,
-    max_age_seconds: int = 3600
+    max_age_seconds: int = None  # Désactivé car on n'a plus de timestamp
 ) -> str:
     """
     Déchiffre un message chiffré avec chiffrement hybride.
+    
+    Format d'entrée : Base64(encrypted_message + SEPARATOR + encrypted_fernet_key_b64)
     """
     try:
         if not private_key_pem or not isinstance(private_key_pem, str):
             raise ValueError("La clé privée RSA est manquante ou invalide.")
         if not validate_rsa_private_key_pem(private_key_pem):
             raise ValueError("La clé privée RSA n'est pas au format PEM valide.")
-        if not encrypted_data_json or not isinstance(encrypted_data_json, str):
+        if not encrypted_data or not isinstance(encrypted_data, str):
             raise ValueError("Les données chiffrées sont manquantes ou invalides.")
         
-        # Décoder le Base64 d'abord (le message est encodé en Base64)
+        # Décoder le Base64
         try:
-            json_data = base64.b64decode(encrypted_data_json.encode('utf-8')).decode('utf-8')
-            data = json.loads(json_data)
-        except (ValueError, json.JSONDecodeError, TypeError) as e:
+            combined = base64.b64decode(encrypted_data.encode('utf-8')).decode('utf-8')
+        except (ValueError, TypeError) as e:
             raise ValueError("Les données chiffrées ne sont pas au format valide.")
         
-        # Vérifier les champs obligatoires
-        if "encrypted_message" not in data or "encrypted_fernet_key" not in data:
-            raise ValueError(
-                "Les données chiffrées doivent contenir 'encrypted_message' et 'encrypted_fernet_key'."
-            )
+        # Séparer les deux parties
+        if SEPARATOR not in combined:
+            raise ValueError("Format des données chiffrées invalide.")
         
-        encrypted_message = data["encrypted_message"]
-        encrypted_fernet_key_b64 = data["encrypted_fernet_key"]
-        
-        # Vérifier l'âge du message
-        if max_age_seconds is not None and "timestamp" in data:
-            current_time = int(time.time())
-            message_time = data["timestamp"]
-            if current_time - message_time > max_age_seconds:
-                raise ValueError(
-                    f"Le message est trop ancien (âge: {current_time - message_time} secondes). "
-                    f"Seuls les messages de moins de {max_age_seconds} secondes sont acceptés."
-                )
+        encrypted_message, encrypted_fernet_key_b64 = combined.split(SEPARATOR, 1)
         
         # Charger la clé privée RSA
         private_key = serialization.load_pem_private_key(
@@ -387,8 +378,7 @@ def decrypt_hybrid(
 # EXPORT DES FONCTIONS POUR JAVASCRIPT
 # ============================================================================
 
-# Ces affectations sont nécessaires car Pyodide exécute le code dans un scope
-# et nous devons rendre les fonctions accessibles au niveau global
+# Ces affectations sont nécessaires pour rendre les fonctions accessibles
 generate_rsa_keys = generate_rsa_keys
 encrypt_hybrid = encrypt_hybrid
 decrypt_hybrid = decrypt_hybrid
