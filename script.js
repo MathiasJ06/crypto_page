@@ -16,7 +16,7 @@ async function initializePyodide() {
 
     try {
         pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/",
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/",
             onDownloadProgress: (loaded, total) => {
                 const percent = (loaded / total) * 100;
                 progressBar.value = percent;
@@ -24,14 +24,7 @@ async function initializePyodide() {
         });
 
         // Charger le package cryptography EN PREMIER
-        console.log("Chargement du package cryptography...");
         await pyodide.loadPackage("cryptography");
-        console.log("Package cryptography chargé avec succès");
-        
-        // Charger le package json (nécessaire pour les fonctions Python)
-        console.log("Chargement du package json...");
-        await pyodide.loadPackage(["json", "base64"]);
-        console.log("Packages json et base64 chargés avec succès");
         isPyodideReady = true;
 
         // Charger les modules Python (Fernet + RSA)
@@ -46,12 +39,8 @@ async function initializePyodide() {
     } catch (error) {
         console.error("Erreur lors du chargement de Pyodide :", error);
         loadingDiv.innerHTML = `
-            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide: ${error.message || error}</p>
-            <p style="color: #666; font-size: 14px; margin-top: 10px;">
-                Veuillez vérifier votre connexion internet et autoriser le chargement des scripts externes.
-                Pyodide nécessite une connexion internet pour se charger (environ 10-15 Mo).
-            </p>
-            <button onclick="location.reload()" style="margin-top: 15px;">Recharger la page</button>
+            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide.</p>
+            <button onclick="location.reload()">Recharger</button>
         `;
     }
 }
@@ -61,32 +50,23 @@ async function loadPythonModules() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
     try {
-        // Charger le module complet qui contient tout le code nécessaire
-        const completeResponse = await fetch('crypto_complete.py');
-        const completeCode = await completeResponse.text();
-        console.log("Chargement de crypto_complete.py...");
-        await pyodide.runPythonAsync(completeCode);
-        console.log("crypto_complete.py chargé avec succès");
+        // Charger les utilitaires de sécurité (doit être chargé avant les autres modules)
+        const securityResponse = await fetch('security_utils.py');
+        const securityCode = await securityResponse.text();
+        await pyodide.runPythonAsync(securityCode);
+        
+        // Charger le module Fernet
+        const fernetResponse = await fetch('generate_fernet_key.py');
+        const fernetCode = await fernetResponse.text();
+        await pyodide.runPythonAsync(fernetCode);
+        
+        // Charger le module RSA
+        const rsaResponse = await fetch('rsa_functions.py');
+        const rsaCode = await rsaResponse.text();
+        await pyodide.runPythonAsync(rsaCode);
         
         pythonModuleLoaded = true;
         console.log("Modules Python (Fernet + RSA + Security) chargés");
-        console.log("Vérification: generate_rsa_keys est-elle définie ?");
-        try {
-            const testResult = await pyodide.runPythonAsync("callable(generate_rsa_keys)");
-            console.log("generate_rsa_keys est définie:", testResult);
-        } catch (e) {
-            console.error("Erreur lors de la vérification de generate_rsa_keys:", e);
-        }
-        
-        // Vérification supplémentaire des fonctions disponibles
-        try {
-            const functions = await pyodide.runPythonAsync(
-                "[name for name in dir() if callable(globals().get(name)) and not name.startswith('_')]"
-            );
-            console.log("Fonctions Python disponibles:", functions);
-        } catch (e) {
-            console.error("Erreur lors de la liste des fonctions:", e);
-        }
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
         throw error; // Propager l'erreur pour bloquer le chargement
@@ -164,14 +144,12 @@ async function generateRSAKeys() {
 
     try {
         console.log("Génération des clés RSA...");
-        console.log("isPyodideReady:", isPyodideReady, "pythonModuleLoaded:", pythonModuleLoaded);
         const result = await runPythonFunction('generate_rsa_keys');
         
         console.log("Résultat brut de generate_rsa_keys:", result);
-        console.log("Type du résultat:", typeof result);
         
         if (!result) {
-            throw new Error("Aucun résultat retourné (result est null/undefined)");
+            throw new Error("Aucun résultat retourné");
         }
         
         // Parser le JSON retourné par Python
