@@ -16,7 +16,7 @@ async function initializePyodide() {
 
     try {
         pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/",
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/",
             onDownloadProgress: (loaded, total) => {
                 const percent = (loaded / total) * 100;
                 progressBar.value = percent;
@@ -30,8 +30,8 @@ async function initializePyodide() {
         
         // Charger le package json (nécessaire pour les fonctions Python)
         console.log("Chargement du package json...");
-        await pyodide.loadPackage("json");
-        console.log("Package json chargé avec succès");
+        await pyodide.loadPackage(["json", "base64"]);
+        console.log("Packages json et base64 chargés avec succès");
         isPyodideReady = true;
 
         // Charger les modules Python (Fernet + RSA)
@@ -46,8 +46,12 @@ async function initializePyodide() {
     } catch (error) {
         console.error("Erreur lors du chargement de Pyodide :", error);
         loadingDiv.innerHTML = `
-            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide.</p>
-            <button onclick="location.reload()">Recharger</button>
+            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide: ${error.message || error}</p>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                Veuillez vérifier votre connexion internet et autoriser le chargement des scripts externes.
+                Pyodide nécessite une connexion internet pour se charger (environ 10-15 Mo).
+            </p>
+            <button onclick="location.reload()" style="margin-top: 15px;">Recharger la page</button>
         `;
     }
 }
