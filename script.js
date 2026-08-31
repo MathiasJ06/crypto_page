@@ -23,11 +23,14 @@ async function initializePyodide() {
             }
         });
 
-        // Charger le package cryptography EN PREMIER
+        // Charger le package cryptography (contient tout ce dont on a besoin)
+        console.log("Chargement du package cryptography...");
         await pyodide.loadPackage("cryptography");
+        console.log("Package cryptography chargé avec succès");
+        
         isPyodideReady = true;
 
-        // Charger les modules Python (Fernet + RSA)
+        // Charger le module Python complet
         await loadPythonModules();
 
         loadingDiv.style.display = 'none';
@@ -39,37 +42,45 @@ async function initializePyodide() {
     } catch (error) {
         console.error("Erreur lors du chargement de Pyodide :", error);
         loadingDiv.innerHTML = `
-            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide.</p>
-            <button onclick="location.reload()">Recharger</button>
+            <p style="color: #e74c3c;">Erreur lors du chargement de Pyodide: ${error.message || error}</p>
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">
+                Veuillez vérifier votre connexion internet et autoriser le chargement des scripts externes.<br>
+                Pyodide nécessite une connexion internet pour se charger (environ 10-15 Mo).
+            </p>
+            <p style="color: #666; font-size: 12px; margin-top: 10px;">
+                Si vous testez localement, utilisez un serveur HTTP: <code>python -m http.server 8000</code><br>
+                Puis ouvrez <code>http://localhost:8000</code>
+            </p>
+            <button onclick="location.reload()" style="margin-top: 15px;">Recharger la page</button>
         `;
     }
 }
 
-// Charger les modules Python (Fernet + RSA)
+// Charger le module Python complet
 async function loadPythonModules() {
     if (!isPyodideReady || pythonModuleLoaded) return;
 
     try {
-        // Charger les utilitaires de sécurité (doit être chargé avant les autres modules)
-        const securityResponse = await fetch('security_utils.py');
-        const securityCode = await securityResponse.text();
-        await pyodide.runPythonAsync(securityCode);
-        
-        // Charger le module Fernet
-        const fernetResponse = await fetch('generate_fernet_key.py');
-        const fernetCode = await fernetResponse.text();
-        await pyodide.runPythonAsync(fernetCode);
-        
-        // Charger le module RSA
-        const rsaResponse = await fetch('rsa_functions.py');
-        const rsaCode = await rsaResponse.text();
-        await pyodide.runPythonAsync(rsaCode);
+        // Charger le module complet (tout en un seul fichier, sans imports locaux)
+        const completeResponse = await fetch('crypto_complete.py');
+        const completeCode = await completeResponse.text();
+        console.log("Chargement de crypto_complete.py...");
+        await pyodide.runPythonAsync(completeCode);
+        console.log("crypto_complete.py chargé avec succès");
         
         pythonModuleLoaded = true;
-        console.log("Modules Python (Fernet + RSA + Security) chargés");
+        console.log("Modules Python chargés");
+        
+        // Vérification: generate_rsa_keys est-elle définie ?
+        try {
+            const testResult = await pyodide.runPythonAsync("callable(generate_rsa_keys)");
+            console.log("generate_rsa_keys est définie:", testResult);
+        } catch (e) {
+            console.error("Erreur lors de la vérification de generate_rsa_keys:", e);
+        }
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
-        throw error; // Propager l'erreur pour bloquer le chargement
+        throw error;
     }
 }
 
@@ -146,7 +157,7 @@ async function generateRSAKeys() {
         console.log("Génération des clés RSA...");
         const result = await runPythonFunction('generate_rsa_keys');
         
-        console.log("Résultat brut de generate_rsa_keys:", result);
+        console.log("Résultat brut:", result);
         
         if (!result) {
             throw new Error("Aucun résultat retourné");
@@ -158,24 +169,23 @@ async function generateRSAKeys() {
             keys = JSON.parse(result);
         } catch (e) {
             console.error("Erreur de parsing JSON:", e);
-            console.error("Résultat non parsable:", result);
             throw new Error("Le résultat n'est pas un JSON valide: " + result);
         }
         
         if (!keys.public_key || !keys.private_key) {
-            throw new Error("Clés manquantes dans la réponse: " + JSON.stringify(keys));
+            throw new Error("Clés manquantes dans la réponse");
         }
         
-        if (!keys.public_key.startsWith("-----BEGIN PUBLIC KEY-----") || !keys.private_key.startsWith("-----BEGIN PRIVATE KEY-----")) {
-            throw new Error("Clés RSA mal formatées (en-tête PEM manquant)");
+        if (!keys.public_key.startsWith("-----BEGIN PUBLIC KEY-----") || 
+            !keys.private_key.startsWith("-----BEGIN PRIVATE KEY-----")) {
+            throw new Error("Clés RSA mal formatées");
         }
         
-        console.log("Clés RSA valides générées !");
         myPublicKeyValue = keys.public_key;
         myPrivateKeyValue = keys.private_key;
         updateKeyStatus();
         
-        // Activer les boutons de téléchargement des clés (dans le sous-onglet Création RSA)
+        // Activer les boutons de téléchargement
         document.getElementById('download-rsa-public-key-btn').disabled = false;
         document.getElementById('download-rsa-private-key-btn').disabled = false;
         
@@ -257,7 +267,6 @@ async function encryptMessage() {
             throw new Error("Échec du chiffrement hybride");
         }
         
-        // Parser le JSON retourné par Python
         let encryptedData;
         try {
             encryptedData = JSON.parse(result);
@@ -304,7 +313,7 @@ async function decryptMessage() {
         if (result) {
             outputText.value = result;
         } else {
-            throw new Error("Échec du déchiffrement hybride (clé ou message invalide)");
+            throw new Error("Échec du déchiffrement hybride");
         }
     } catch (error) {
         console.error("Erreur lors du déchiffrement hybride:", error);
@@ -377,11 +386,10 @@ function loadKeyFromFile(keyType, fileInputId) {
             }
             updateKeyStatus();
             
-            // Activer les boutons de téléchargement dans le sous-onglet Création RSA
-            if (myPublicKeyValue || myPrivateKeyValue) {
-                document.getElementById('download-rsa-public-key-btn').disabled = !myPublicKeyValue;
-                document.getElementById('download-rsa-private-key-btn').disabled = !myPrivateKeyValue;
-            }
+            // Activer les boutons de téléchargement
+            document.getElementById('download-rsa-public-key-btn').disabled = !myPublicKeyValue;
+            document.getElementById('download-rsa-private-key-btn').disabled = !myPrivateKeyValue;
+            
             fileInput.value = "";
         };
         reader.readAsText(file);
@@ -395,7 +403,6 @@ function clearKeys() {
         myPublicKeyValue = "";
         myPrivateKeyValue = "";
         updateKeyStatus();
-        // Désactiver les boutons de téléchargement des clés
         document.getElementById('download-rsa-public-key-btn').disabled = true;
         document.getElementById('download-rsa-private-key-btn').disabled = true;
     }
@@ -451,7 +458,7 @@ function setupEventListeners() {
     setupTabs();
     setupSubTabs();
 
-    // Désactiver les boutons de téléchargement des clés au chargement
+    // Désactiver les boutons de téléchargement au chargement
     document.getElementById('download-rsa-public-key-btn').disabled = true;
     document.getElementById('download-rsa-private-key-btn').disabled = true;
 
