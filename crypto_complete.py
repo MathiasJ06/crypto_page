@@ -10,8 +10,9 @@ Fonctions exposées au niveau global pour JavaScript :
 - decrypt_hybrid(private_key_pem, encrypted_data)
 
 Format de sortie :
-- Le message chiffré est encodé en Base64 sous la forme : encrypted_message|encrypted_fernet_key
-- Puis le tout est encodé en Base64 une seconde fois pour un transport propre
+- Le message chiffré est encodé en Base64 sous la forme : 
+  length(4 octets)|encrypted_message|encrypted_fernet_key
+- Puis le tout est encodé en Base64 URL-safe pour un transport propre
 """
 
 # ============================================================================
@@ -28,6 +29,7 @@ import base64
 import json
 import os
 import re
+import struct
 import time
 
 
@@ -39,8 +41,6 @@ MIN_RSA_KEY_SIZE = 2048
 RECOMMENDED_RSA_KEY_SIZE = 3072
 FERNET_KEY_SIZE = 32
 backend = default_backend()
-
-SEPARATOR = "|"  # Séparateur pour le format binaire
 
 
 # ============================================================================
@@ -252,14 +252,16 @@ def generate_rsa_keys(
 
 def encrypt_hybrid(
     public_key_pem: str,
-    message: str,
-    include_nonce: bool = False  # Désactivé par défaut pour plus de discrétion
+    message: str
 ) -> str:
     """
     Chiffre un message avec chiffrement hybride (Fernet + RSA).
     
-    Format de sortie : Base64(encrypted_message + SEPARATOR + encrypted_fernet_key_b64)
-    Cela cache complètement la structure du chiffrement.
+    Format de sortie : 
+    Base64_URL_SAFE(length_4bytes + encrypted_message + encrypted_fernet_key)
+    
+    Où length_4bytes est la longueur de encrypted_message (4 octets, big-endian)
+    Cela permet de séparer les deux parties sans ambiguïté.
     """
     if not public_key_pem or not isinstance(public_key_pem, str):
         raise ValueError("La clé publique RSA est manquante ou invalide.")
@@ -291,26 +293,27 @@ def encrypt_hybrid(
         )
     )
     
-    # Encoder la clé RSA chiffrée en Base64
-    encrypted_fernet_key_b64 = base64.b64encode(ciphertext).decode('utf-8')
+    # Encoder la clé RSA chiffrée en Base64 URL-safe (sans padding)
+    encrypted_fernet_key_b64 = base64.urlsafe_b64encode(ciphertext).decode('utf-8').rstrip('=')
     
-    # Combiner les deux parties avec un séparateur
-    combined = f"{encrypted_message}{SEPARATOR}{encrypted_fernet_key_b64}"
+    # Créer le format binaire : [length(4o)][encrypted_message][encrypted_fernet_key]
+    # La longueur permet de séparer les deux parties sans ambiguïté
+    length_prefix = len(encrypted_message).to_bytes(4, 'big')
+    binary_data = length_prefix + encrypted_message.encode('utf-8') + encrypted_fernet_key_b64.encode('utf-8')
     
-    # Encoder le tout en Base64 pour un transport propre
-    return base64.b64encode(combined.encode('utf-8')).decode('utf-8')
+    # Encoder le tout en Base64 URL-safe (sans padding)
+    return base64.urlsafe_b64encode(binary_data).decode('utf-8').rstrip('=')
 
 
 def decrypt_hybrid(
     private_key_pem: str,
-    encrypted_data: str,
-    password: str = None,
-    max_age_seconds: int = None  # Désactivé car on n'a plus de timestamp
+    encrypted_data: str
 ) -> str:
     """
     Déchiffre un message chiffré avec chiffrement hybride.
     
-    Format d'entrée : Base64(encrypted_message + SEPARATOR + encrypted_fernet_key_b64)
+    Format d'entrée : 
+    Base64_URL_SAFE(length_4bytes + encrypted_message + encrypted_fernet_key)
     """
     try:
         if not private_key_pem or not isinstance(private_key_pem, str):
@@ -320,22 +323,29 @@ def decrypt_hybrid(
         if not encrypted_data or not isinstance(encrypted_data, str):
             raise ValueError("Les données chiffrées sont manquantes ou invalides.")
         
-        # Décoder le Base64
+        # Ajouter le padding Base64 si nécessaire
+        encrypted_data_padded = encrypted_data + '=' * ((4 - len(encrypted_data) % 4) % 4)
+        
+        # Décoder le Base64 URL-safe
         try:
-            combined = base64.b64decode(encrypted_data.encode('utf-8')).decode('utf-8')
+            binary_data = base64.urlsafe_b64decode(encrypted_data_padded.encode('utf-8'))
         except (ValueError, TypeError) as e:
             raise ValueError("Les données chiffrées ne sont pas au format valide.")
         
-        # Séparer les deux parties
-        if SEPARATOR not in combined:
-            raise ValueError("Format des données chiffrées invalide.")
+        # Extraire la longueur (4 premiers octets)
+        if len(binary_data) < 4:
+            raise ValueError("Données chiffrées trop courtes.")
         
-        encrypted_message, encrypted_fernet_key_b64 = combined.split(SEPARATOR, 1)
+        message_length = int.from_bytes(binary_data[:4], 'big')
+        
+        # Extraire le message chiffré et la clé chiffrée
+        encrypted_message = binary_data[4:4+message_length].decode('utf-8')
+        encrypted_fernet_key_b64 = binary_data[4+message_length:].decode('utf-8')
         
         # Charger la clé privée RSA
         private_key = serialization.load_pem_private_key(
             private_key_pem.encode('utf-8'),
-            password=password.encode('utf-8') if password else None,
+            password=None,
             backend=backend
         )
         
@@ -347,8 +357,11 @@ def decrypt_hybrid(
                 f"Minimum requis: {MIN_RSA_KEY_SIZE} bits."
             )
         
+        # Ajouter le padding Base64 à la clé Fernet si nécessaire
+        encrypted_fernet_key_padded = encrypted_fernet_key_b64 + '=' * ((4 - len(encrypted_fernet_key_b64) % 4) % 4)
+        ciphertext = base64.urlsafe_b64decode(encrypted_fernet_key_padded.encode('utf-8'))
+        
         # Déchiffrer la clé Fernet
-        ciphertext = base64.b64decode(encrypted_fernet_key_b64.encode('utf-8'))
         fernet_key = private_key.decrypt(
             ciphertext,
             padding.OAEP(
@@ -371,7 +384,7 @@ def decrypt_hybrid(
     except InvalidToken as e:
         raise ValueError("Échec du déchiffrement: jeton Fernet invalide.") from e
     except Exception as e:
-        raise ValueError("Échec du déchiffrement hybride.") from e
+        raise ValueError(f"Échec du déchiffrement hybride: {str(e)}") from e
 
 
 # ============================================================================
