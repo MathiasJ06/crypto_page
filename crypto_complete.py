@@ -293,7 +293,9 @@ def encrypt_hybrid(
     
     result["timestamp"] = int(time.time())
     
-    return json.dumps(result)
+    # Encoder tout le JSON en Base64 pour rendre le format illisible
+    json_data = json.dumps(result)
+    return base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
 
 
 def decrypt_hybrid(
@@ -313,11 +315,12 @@ def decrypt_hybrid(
         if not encrypted_data_json or not isinstance(encrypted_data_json, str):
             raise ValueError("Les données chiffrées sont manquantes ou invalides.")
         
-        # Parser le JSON
+        # Décoder le Base64 d'abord (le message est encodé en Base64)
         try:
-            data = json.loads(encrypted_data_json)
-        except json.JSONDecodeError:
-            raise ValueError("Les données chiffrées ne sont pas un JSON valide.")
+            json_data = base64.b64decode(encrypted_data_json.encode('utf-8')).decode('utf-8')
+            data = json.loads(json_data)
+        except (ValueError, json.JSONDecodeError, TypeError) as e:
+            raise ValueError("Les données chiffrées ne sont pas au format valide.")
         
         # Vérifier les champs obligatoires
         if "encrypted_message" not in data or "encrypted_fernet_key" not in data:
