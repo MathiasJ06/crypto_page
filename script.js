@@ -70,14 +70,6 @@ async function loadPythonModules() {
         
         pythonModuleLoaded = true;
         console.log("Modules Python chargés");
-        
-        // Vérification: generate_rsa_keys est-elle définie ?
-        try {
-            const testResult = await pyodide.runPythonAsync("callable(generate_rsa_keys)");
-            console.log("generate_rsa_keys est définie:", testResult);
-        } catch (e) {
-            console.error("Erreur lors de la vérification de generate_rsa_keys:", e);
-        }
     } catch (error) {
         console.error("Erreur lors du chargement des modules Python :", error);
         throw error;
@@ -237,6 +229,8 @@ function loadInterlocutorKeyFromFile() {
 async function encryptMessage() {
     const inputText = document.getElementById('encrypt-input');
     const outputText = document.getElementById('encrypt-output');
+    const logText = document.getElementById('encrypt-log');
+    const logSection = document.getElementById('encrypt-log-section');
     
     const text = inputText.value;
     
@@ -250,28 +244,39 @@ async function encryptMessage() {
         return;
     }
     
-    if (!myPrivateKeyValue) {
-        outputText.value = "Veuillez d'abord générer ou charger votre clé privée.";
-        return;
-    }
-    
     const encryptBtn = document.getElementById('encrypt-btn');
     const originalText = encryptBtn.textContent;
     encryptBtn.disabled = true;
     encryptBtn.textContent = "Chiffrement en cours...";
     outputText.value = "Chiffrement en cours...";
     
+    // Afficher les logs
+    logText.textContent = "[INFO] Début du chiffrement...\n";
+    logSection.style.display = 'block';
+    
     try {
+        logText.textContent += `[INFO] Longueur du message: ${text.length} caractères\n`;
+        logText.textContent += `[INFO] Clé publique du destinataire chargée: ${interlocutorPublicKeyValue ? 'Oui' : 'Non'}\n`;
+        
+        const startTime = Date.now();
         const result = await runPythonFunction('encrypt_hybrid', interlocutorPublicKeyValue, text);
+        const endTime = Date.now();
+        
+        logText.textContent += `[INFO] Chiffrement terminé en ${endTime - startTime}ms\n`;
+        
         if (!result) {
             throw new Error("Échec du chiffrement hybride");
         }
+        
+        logText.textContent += `[SUCCESS] Message chiffré avec succès!\n`;
+        logText.textContent += `[INFO] Longueur du résultat: ${result.length} caractères\n`;
         
         // Le résultat est maintenant une chaîne Base64 directement, pas du JSON
         outputText.value = result;
         
     } catch (error) {
         console.error("Erreur lors du chiffrement hybride:", error);
+        logText.textContent += `[ERROR] Erreur: ${error.message}\n`;
         outputText.value = "Erreur lors du chiffrement hybride: " + error.message;
     } finally {
         encryptBtn.disabled = false;
@@ -283,6 +288,8 @@ async function encryptMessage() {
 async function decryptMessage() {
     const inputText = document.getElementById('decrypt-input');
     const outputText = document.getElementById('decrypt-output');
+    const logText = document.getElementById('decrypt-log');
+    const logSection = document.getElementById('decrypt-log-section');
     
     const text = inputText.value.trim();
     
@@ -302,15 +309,29 @@ async function decryptMessage() {
     decryptBtn.textContent = "Déchiffrement en cours...";
     outputText.value = "Déchiffrement en cours...";
     
+    // Afficher les logs
+    logText.textContent = "[INFO] Début du déchiffrement...\n";
+    logSection.style.display = 'block';
+    
     try {
+        logText.textContent += `[INFO] Longueur des données chiffrées: ${text.length} caractères\n`;
+        logText.textContent += `[INFO] Clé privée chargée: ${myPrivateKeyValue ? 'Oui' : 'Non'}\n`;
+        
+        const startTime = Date.now();
         const result = await runPythonFunction('decrypt_hybrid', myPrivateKeyValue, text);
+        const endTime = Date.now();
+        
+        logText.textContent += `[INFO] Déchiffrement terminé en ${endTime - startTime}ms\n`;
+        
         if (result) {
+            logText.textContent += `[SUCCESS] Message déchiffré avec succès!\n`;
             outputText.value = result;
         } else {
             throw new Error("Échec du déchiffrement hybride");
         }
     } catch (error) {
         console.error("Erreur lors du déchiffrement hybride:", error);
+        logText.textContent += `[ERROR] Erreur: ${error.message}\n`;
         outputText.value = "Erreur lors du déchiffrement hybride: " + error.message;
     } finally {
         decryptBtn.disabled = false;
@@ -445,12 +466,105 @@ function setupSubTabs() {
 }
 
 // ====================
+// FONCTIONS DE GESTION DES LOGS
+// ====================
+
+function setupLogToggles() {
+    // Bouton pour afficher/masquer les logs de chiffrement
+    const encryptToggleBtn = document.getElementById('encrypt-toggle-log-btn');
+    const encryptLogSection = document.getElementById('encrypt-log-section');
+    const encryptHideBtn = document.getElementById('encrypt-hide-log-btn');
+    
+    if (encryptToggleBtn && encryptLogSection) {
+        encryptToggleBtn.addEventListener('click', () => {
+            encryptLogSection.style.display = 'block';
+            encryptToggleBtn.style.display = 'none';
+        });
+        
+        if (encryptHideBtn) {
+            encryptHideBtn.addEventListener('click', () => {
+                encryptLogSection.style.display = 'none';
+                encryptToggleBtn.style.display = 'inline-block';
+            });
+        }
+    }
+    
+    // Bouton pour copier les logs de chiffrement
+    const encryptCopyBtn = document.getElementById('encrypt-copy-log-btn');
+    if (encryptCopyBtn) {
+        encryptCopyBtn.addEventListener('click', () => {
+            const logText = document.getElementById('encrypt-log');
+            if (logText) {
+                navigator.clipboard.writeText(logText.textContent)
+                    .then(() => alert('Logs copiés dans le presse-papiers!'))
+                    .catch(err => console.error('Erreur lors de la copie:', err));
+            }
+        });
+    }
+    
+    // Bouton pour effacer les logs de chiffrement
+    const encryptClearBtn = document.getElementById('encrypt-clear-log-btn');
+    if (encryptClearBtn) {
+        encryptClearBtn.addEventListener('click', () => {
+            const logText = document.getElementById('encrypt-log');
+            if (logText) {
+                logText.textContent = '';
+            }
+        });
+    }
+    
+    // Bouton pour afficher/masquer les logs de déchiffrement
+    const decryptToggleBtn = document.getElementById('decrypt-toggle-log-btn');
+    const decryptLogSection = document.getElementById('decrypt-log-section');
+    const decryptHideBtn = document.getElementById('decrypt-hide-log-btn');
+    
+    if (decryptToggleBtn && decryptLogSection) {
+        decryptToggleBtn.addEventListener('click', () => {
+            decryptLogSection.style.display = 'block';
+            decryptToggleBtn.style.display = 'none';
+        });
+        
+        if (decryptHideBtn) {
+            decryptHideBtn.addEventListener('click', () => {
+                decryptLogSection.style.display = 'none';
+                decryptToggleBtn.style.display = 'inline-block';
+            });
+        }
+    }
+    
+    // Bouton pour copier les logs de déchiffrement
+    const decryptCopyBtn = document.getElementById('decrypt-copy-log-btn');
+    if (decryptCopyBtn) {
+        decryptCopyBtn.addEventListener('click', () => {
+            const logText = document.getElementById('decrypt-log');
+            if (logText) {
+                navigator.clipboard.writeText(logText.textContent)
+                    .then(() => alert('Logs copiés dans le presse-papiers!'))
+                    .catch(err => console.error('Erreur lors de la copie:', err));
+            }
+        });
+    }
+    
+    // Bouton pour effacer les logs de déchiffrement
+    const decryptClearBtn = document.getElementById('decrypt-clear-log-btn');
+    if (decryptClearBtn) {
+        decryptClearBtn.addEventListener('click', () => {
+            const logText = document.getElementById('decrypt-log');
+            if (logText) {
+                logText.textContent = '';
+            }
+        });
+    }
+}
+
+// ====================
 // CONFIGURATION DES ÉCOUTEURS
 // ====================
 
 function setupEventListeners() {
     setupTabs();
     setupSubTabs();
+    setupLogToggles();
 
     // Désactiver les boutons de téléchargement au chargement
     document.getElementById('download-rsa-public-key-btn').disabled = true;
