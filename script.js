@@ -267,14 +267,8 @@ async function encryptMessage() {
             throw new Error("Échec du chiffrement hybride");
         }
         
-        let encryptedData;
-        try {
-            encryptedData = JSON.parse(result);
-        } catch (e) {
-            throw new Error("Résultat du chiffrement invalide: " + result);
-        }
-        
-        outputText.value = JSON.stringify(encryptedData, null, 2);
+        // Le résultat est maintenant une chaîne Base64 directement, pas du JSON
+        outputText.value = result;
         
     } catch (error) {
         console.error("Erreur lors du chiffrement hybride:", error);
