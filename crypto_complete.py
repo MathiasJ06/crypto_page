@@ -253,28 +253,41 @@ def encrypt_hybrid(
     Format de sortie :
     Base64_URL_SAFE(length_4bytes + encrypted_message_bytes + encrypted_fernet_key_bytes)
     
-    Tout est en binaire brut (pas de double encodage Base64).
-    La longueur est celle de encrypted_message_bytes (4 octets, big-endian).
+    Où :
+    - length_4bytes = longueur de encrypted_message_bytes (4 octets, big-endian)
+    - encrypted_message_bytes = message chiffré avec Fernet (déjà en Base64 standard)
+    - encrypted_fernet_key_bytes = clé Fernet chiffrée avec RSA, encodée en Base64 URL-safe
     """
+    print("=== DEBUT ENCRYPT_HYBRID ===")
+    print(f"Longueur du message: {len(message)} caractères")
+    
     if not public_key_pem or not isinstance(public_key_pem, str):
+        print("ERREUR: Clé publique RSA manquante ou invalide")
         raise ValueError("La clé publique RSA est manquante ou invalide.")
     if not validate_rsa_public_key_pem(public_key_pem):
+        print("ERREUR: Clé publique RSA n'est pas au format PEM valide")
         raise ValueError("La clé publique RSA n'est pas au format PEM valide.")
     if not message or not isinstance(message, str):
+        print("ERREUR: Message manquant ou invalide")
         raise ValueError("Le message est manquant ou invalide.")
     
     # Générer une clé Fernet aléatoire (32 octets binaires)
-    fernet_key = Fernet.generate_key()  # Retourne des bytes
+    fernet_key = Fernet.generate_key()
+    print(f"Clé Fernet générée: {len(fernet_key)} octets")
+    print(f"Clé Fernet (hex): {fernet_key.hex()}")
     
-    # Chiffrer le message avec Fernet (retourne du Base64 standard)
+    # Chiffrer le message avec Fernet (retourne des bytes Base64)
     fernet = Fernet(fernet_key)
-    encrypted_message = fernet.encrypt(message.encode('utf-8'))  # Retourne des bytes (Base64)
+    encrypted_message = fernet.encrypt(message.encode('utf-8'))
+    print(f"Message chiffré Fernet: {len(encrypted_message)} octets")
+    print(f"Type encrypted_message: {type(encrypted_message)}")
     
     # Charger la clé publique RSA
     public_key = serialization.load_pem_public_key(
         public_key_pem.encode('utf-8'),
         backend=backend
     )
+    print(f"Clé publique RSA chargée, taille: {public_key.key_size} bits")
     
     # Chiffrer la clé Fernet avec RSA-OAEP (retourne des bytes)
     ciphertext = public_key.encrypt(
@@ -285,25 +298,32 @@ def encrypt_hybrid(
             label=None
         )
     )
+    print(f"Clé Fernet chiffrée RSA: {len(ciphertext)} octets")
     
-    # encrypted_message est déjà du Base64 (Fernet.encode retourne du Base64)
-    # On le garde en bytes pour la concaténation
-    encrypted_message_bytes = encrypted_message  # bytes, Base64 standard
-    
-    # ciphertext est des bytes bruts (RSA chiffré)
-    # On l'encode en Base64 URL-safe sans padding pour la concaténation
+    # Encoder la clé RSA chiffrée en Base64 URL-safe (sans padding)
     encrypted_fernet_key_b64 = base64.urlsafe_b64encode(ciphertext).decode('utf-8').rstrip('=')
+    print(f"Clé Fernet chiffrée encodée: {len(encrypted_fernet_key_b64)} caractères")
     
-    # Créer le format binaire : [length(4o)][encrypted_message_base64][encrypted_fernet_key_b64]
+    # Créer le format binaire : [length(4o)][encrypted_message_bytes][encrypted_fernet_key_bytes]
     # La longueur est celle de encrypted_message_bytes (qui est déjà du Base64)
-    length_prefix = len(encrypted_message_bytes).to_bytes(4, 'big')
+    length_prefix = len(encrypted_message).to_bytes(4, 'big')
+    print(f"Longueur du message chiffré: {len(encrypted_message)} octets")
+    print(f"Prefix de longueur: {length_prefix.hex()}")
     
     # Tout en bytes pour la concaténation
     encrypted_fernet_key_bytes = encrypted_fernet_key_b64.encode('utf-8')
-    binary_data = length_prefix + encrypted_message_bytes + encrypted_fernet_key_bytes
+    print(f"Longueur encrypted_fernet_key_bytes: {len(encrypted_fernet_key_bytes)} octets")
+    
+    binary_data = length_prefix + encrypted_message + encrypted_fernet_key_bytes
+    print(f"Données binaires totales: {len(binary_data)} octets")
+    print(f"Structure: [{len(length_prefix)}o][{len(encrypted_message)}o][{len(encrypted_fernet_key_bytes)}o]")
     
     # Encoder le tout en Base64 URL-safe (sans padding)
-    return base64.urlsafe_b64encode(binary_data).decode('utf-8').rstrip('=')
+    final_result = base64.urlsafe_b64encode(binary_data).decode('utf-8').rstrip('=')
+    print(f"Résultat final: {len(final_result)} caractères")
+    print("=== FIN ENCRYPT_HYBRID ===\n")
+    
+    return final_result
 
 
 def decrypt_hybrid(
@@ -316,32 +336,48 @@ def decrypt_hybrid(
     Format d'entrée :
     Base64_URL_SAFE(length_4bytes + encrypted_message_base64 + encrypted_fernet_key_b64)
     """
+    print("=== DEBUT DECRYPT_HYBRID ===")
+    print(f"Longueur des données d'entrée: {len(encrypted_data)} caractères")
+    
     try:
         if not private_key_pem or not isinstance(private_key_pem, str):
+            print("ERREUR: Clé privée RSA manquante ou invalide")
             raise ValueError("La clé privée RSA est manquante ou invalide.")
         if not validate_rsa_private_key_pem(private_key_pem):
+            print("ERREUR: Clé privée RSA n'est pas au format PEM valide")
             raise ValueError("La clé privée RSA n'est pas au format PEM valide.")
         if not encrypted_data or not isinstance(encrypted_data, str):
+            print("ERREUR: Données chiffrées manquantes ou invalides")
             raise ValueError("Les données chiffrées sont manquantes ou invalides.")
         
         # Ajouter le padding Base64 URL-safe si nécessaire
         encrypted_data_padded = encrypted_data + '=' * ((4 - len(encrypted_data) % 4) % 4)
+        print(f"Données avec padding: {len(encrypted_data_padded)} caractères")
         
         # Décoder le Base64 URL-safe -> bytes
         try:
             binary_data = base64.urlsafe_b64decode(encrypted_data_padded.encode('utf-8'))
+            print(f"Données binaires décodées: {len(binary_data)} octets")
         except (ValueError, TypeError) as e:
+            print(f"ERREUR décodage Base64: {str(e)}")
             raise ValueError(f"Les données chiffrées ne sont pas au format valide: {str(e)}")
         
         # Extraire la longueur (4 premiers octets)
         if len(binary_data) < 4:
+            print(f"ERREUR: Données trop courtes ({len(binary_data)} octets)")
             raise ValueError("Données chiffrées trop courtes.")
         
         message_length = int.from_bytes(binary_data[:4], 'big')
+        print(f"Longueur du message chiffré: {message_length} octets")
+        print(f"Prefix de longueur: {binary_data[:4].hex()}")
         
         # Extraire le message chiffré (déjà en Base64) et la clé chiffrée (Base64 URL-safe)
-        encrypted_message_bytes = binary_data[4:4+message_length]  # bytes, Base64 standard
-        encrypted_fernet_key_b64 = binary_data[4+message_length:].decode('utf-8')  # str, Base64 URL-safe
+        encrypted_message_bytes = binary_data[4:4+message_length]
+        encrypted_fernet_key_b64 = binary_data[4+message_length:].decode('utf-8')
+        
+        print(f"Message chiffré extrait: {len(encrypted_message_bytes)} octets")
+        print(f"Message chiffré (premier 20 octets): {encrypted_message_bytes[:20]}")
+        print(f"Clé Fernet chiffrée: {len(encrypted_fernet_key_b64)} caractères")
         
         # Charger la clé privée RSA
         private_key = serialization.load_pem_private_key(
@@ -349,10 +385,12 @@ def decrypt_hybrid(
             password=None,
             backend=backend
         )
+        print(f"Clé privée RSA chargée, taille: {private_key.key_size} bits")
         
         # Vérifier la taille de la clé RSA
         key_size = private_key.key_size
         if not is_rsa_key_size_secure(key_size):
+            print(f"ERREUR: Taille de clé RSA insuffisante: {key_size} bits")
             raise ValueError(
                 f"La taille de la clé RSA ({key_size} bits) est insuffisante. "
                 f"Minimum requis: {MIN_RSA_KEY_SIZE} bits."
@@ -360,7 +398,11 @@ def decrypt_hybrid(
         
         # Ajouter le padding Base64 à la clé Fernet si nécessaire
         encrypted_fernet_key_padded = encrypted_fernet_key_b64 + '=' * ((4 - len(encrypted_fernet_key_b64) % 4) % 4)
+        print(f"Clé Fernet chiffrée avec padding: {len(encrypted_fernet_key_padded)} caractères")
+        
+        # Décoder la clé Fernet chiffrée
         ciphertext = base64.urlsafe_b64decode(encrypted_fernet_key_padded.encode('utf-8'))
+        print(f"Ciphertext RSA décodé: {len(ciphertext)} octets")
         
         # Déchiffrer la clé Fernet avec RSA-OAEP
         fernet_key = private_key.decrypt(
@@ -372,21 +414,39 @@ def decrypt_hybrid(
             )
         )
         
+        print(f"Clé Fernet déchiffrée: {len(fernet_key)} octets")
+        print(f"Clé Fernet déchiffrée (hex): {fernet_key.hex()}")
+        print(f"Type: {type(fernet_key)}")
+        
         # fernet_key doit être des bytes de 32 octets
         if not validate_fernet_key(fernet_key):
+            print(f"ERREUR: Clé Fernet invalide! Taille: {len(fernet_key)}, attendu: {FERNET_KEY_SIZE}")
             raise ValueError(f"La clé Fernet déchiffrée est invalide. Taille: {len(fernet_key)} octets, attendu: {FERNET_KEY_SIZE}")
+        
+        print("Clé Fernet valide!")
         
         # Déchiffrer le message avec Fernet
         # encrypted_message_bytes est déjà en Base64, on doit le décoder pour Fernet
         fernet = Fernet(fernet_key)
-        decrypted_message = fernet.decrypt(encrypted_message_bytes).decode('utf-8')
+        print(f"Création objet Fernet avec clé: {fernet_key[:16].hex()}...")
         
-        return decrypted_message
+        # Essayer de déchiffrer
+        try:
+            decrypted_message = fernet.decrypt(encrypted_message_bytes).decode('utf-8')
+            print(f"Message déchiffré: {len(decrypted_message)} caractères")
+            print("=== FIN DECRYPT_HYBRID (SUCCESS) ===\n")
+            return decrypted_message
+        except InvalidToken as e:
+            print(f"ERREUR InvalidToken: {str(e)}")
+            print(f"Tentative avec encrypted_message_bytes type: {type(encrypted_message_bytes)}")
+            print(f"Tentative avec encrypted_message_bytes: {encrypted_message_bytes[:50]}")
+            print("=== FIN DECRYPT_HYBRID (ERROR) ===\n")
+            raise ValueError(f"Échec du déchiffrement: jeton Fernet invalide: {str(e)}")
         
-    except InvalidToken as e:
-        raise ValueError(f"Échec du déchiffrement: jeton Fernet invalide: {str(e)}") from e
     except Exception as e:
-        raise ValueError(f"Échec du déchiffrement hybride: {str(e)}") from e
+        print(f"ERREUR générale: {str(e)}")
+        print("=== FIN DECRYPT_HYBRID (ERROR) ===\n")
+        raise ValueError(f"Échec du déchiffrement hybride: {str(e)}")
 
 
 # ============================================================================
