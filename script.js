@@ -8,6 +8,11 @@ let myPublicKeyValue = "";
 let myPrivateKeyValue = "";
 let interlocutorPublicKeyValue = "";
 
+// Stockage des noms de fichiers des clés pour les logs
+let myPublicKeyName = "";
+let myPrivateKeyName = "";
+let interlocutorPublicKeyName = "";
+
 // Initialiser Pyodide
 async function initializePyodide() {
     const progressBar = document.getElementById('progress-bar');
@@ -113,6 +118,24 @@ async function runPythonFunction(functionName, ...args) {
     }
 }
 
+// Extraire le nom du fichier à partir du contenu de la clé
+function getKeyName(keyContent) {
+    if (!keyContent) return "Non chargée";
+    // Si la clé a été chargée depuis un fichier, on aurait le nom
+    // Sinon, on extrait un identifiant à partir du contenu
+    if (keyContent.includes("-----BEGIN PUBLIC KEY-----")) {
+        const lines = keyContent.split('\n');
+        const firstLine = lines.find(l => l.includes('-----BEGIN') || l.includes('-----END'));
+        if (firstLine && firstLine.includes('(')) {
+            return firstLine.match(/\(([^)]+)\)/)?.[1] || "Clé publique";
+        }
+        return "Clé publique";
+    } else if (keyContent.includes("-----BEGIN PRIVATE KEY-----")) {
+        return "Clé privée";
+    }
+    return "Clé";
+}
+
 // Mettre à jour l'affichage du statut des clés
 function updateKeyStatus() {
     const publicKeyStatus = document.getElementById('public-key-status');
@@ -175,6 +198,12 @@ async function generateRSAKeys() {
         
         myPublicKeyValue = keys.public_key;
         myPrivateKeyValue = keys.private_key;
+        
+        // Mettre à jour les noms des clés
+        const prefix = document.getElementById('key-prefix').value.trim() || "ma_cle";
+        myPublicKeyName = `${prefix}_public`;
+        myPrivateKeyName = `${prefix}_private`;
+        
         updateKeyStatus();
         
         // Activer les boutons de téléchargement
@@ -212,6 +241,7 @@ function loadInterlocutorKeyFromFile() {
                 return;
             }
             interlocutorPublicKeyValue = key;
+            interlocutorPublicKeyName = file.name.replace('.key', '').replace('.txt', '');
             fileInput.value = "";
             updateKeyStatus();
             alert("Clé publique RSA de l'interlocuteur chargée avec succès.");
@@ -256,7 +286,8 @@ async function encryptMessage() {
     
     try {
         logText.textContent += `[INFO] Longueur du message: ${text.length} caractères\n`;
-        logText.textContent += `[INFO] Clé publique du destinataire chargée: ${interlocutorPublicKeyValue ? 'Oui' : 'Non'}\n`;
+        logText.textContent += `[INFO] Clé publique du destinataire: ${interlocutorPublicKeyName || 'Non nommée'}\n`;
+        logText.textContent += `[INFO] Clé privée de l'envoyeur: ${myPrivateKeyName || 'Non chargée'}\n`;
         
         const startTime = Date.now();
         const result = await runPythonFunction('encrypt_hybrid', interlocutorPublicKeyValue, text);
@@ -315,7 +346,7 @@ async function decryptMessage() {
     
     try {
         logText.textContent += `[INFO] Longueur des données chiffrées: ${text.length} caractères\n`;
-        logText.textContent += `[INFO] Clé privée chargée: ${myPrivateKeyValue ? 'Oui' : 'Non'}\n`;
+        logText.textContent += `[INFO] Clé privée utilisée: ${myPrivateKeyName || 'Non nommée'}\n`;
         
         const startTime = Date.now();
         const result = await runPythonFunction('decrypt_hybrid', myPrivateKeyValue, text);
@@ -361,6 +392,14 @@ function downloadKey(key, keyType) {
     
     const prefix = document.getElementById('key-prefix').value.trim() || "key";
     const name = `${prefix}_${keyType}_${new Date().toISOString().slice(0, 10)}`;
+    
+    // Mettre à jour le nom de la clé
+    if (keyType === 'public') {
+        myPublicKeyName = name;
+    } else if (keyType === 'private') {
+        myPrivateKeyName = name;
+    }
+    
     const blob = new Blob([key], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -396,8 +435,10 @@ function loadKeyFromFile(keyType, fileInputId) {
             
             if (keyType === 'public') {
                 myPublicKeyValue = key;
+                myPublicKeyName = file.name.replace('.key', '').replace('.txt', '');
             } else if (keyType === 'private') {
                 myPrivateKeyValue = key;
+                myPrivateKeyName = file.name.replace('.key', '').replace('.txt', '');
             }
             updateKeyStatus();
             
@@ -417,6 +458,9 @@ function clearKeys() {
     if (confirm("Voulez-vous vraiment effacer toutes vos clés ?")) {
         myPublicKeyValue = "";
         myPrivateKeyValue = "";
+        myPublicKeyName = "";
+        myPrivateKeyName = "";
+        interlocutorPublicKeyName = "";
         updateKeyStatus();
         document.getElementById('download-rsa-public-key-btn').disabled = true;
         document.getElementById('download-rsa-private-key-btn').disabled = true;
