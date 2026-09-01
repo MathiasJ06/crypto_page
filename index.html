@@ -250,6 +250,22 @@
     <input type="file" id="file-input-my-private" accept=".txt,.key,.pem" style="display: none;">
     <input type="file" id="file-input-interlocutor" accept=".txt,.key,.pem" style="display: none;">
 
-    <script src="script.js"></script>
+    <script>
+        // Attendre que Pyodide soit chargé avant de lancer l'application
+        function waitForPyodide() {
+            if (typeof loadPyodide === 'function') {
+                // Pyodide est prêt, charger l'application
+                const script = document.createElement('script');
+                script.src = 'script.js';
+                document.body.appendChild(script);
+            } else {
+                // Réessayer après un court délai
+                setTimeout(waitForPyodide, 100);
+            }
+        }
+        
+        // Démarrer la vérification
+        waitForPyodide();
+    </script>
 </body>
 </html>

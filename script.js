@@ -27,6 +27,11 @@ async function initializePyodide() {
     const contentDiv = document.getElementById('content');
 
     try {
+        // Vérifier que loadPyodide est disponible
+        if (typeof loadPyodide !== 'function') {
+            throw new Error('loadPyodide non disponible - le script Pyodide ne s\'est pas chargé correctement');
+        }
+
         pyodide = await loadPyodide({
             indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/",
             onDownloadProgress: (loaded, total) => {
