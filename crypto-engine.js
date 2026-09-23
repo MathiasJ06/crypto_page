@@ -37,8 +37,32 @@ function checkRSA(key) {
 export async function importPublic(pem) {
     return checkRSA(await crypto.subtle.importKey('spki', pemBytes(pem, 'PUBLIC KEY'), rsa, true, ['encrypt']));
 }
+function der(tag, content) {
+    const len = content.length;
+    const header = len < 128 ? [tag, len] : len < 256 ? [tag, 0x81, len] : len < 65536 ? [tag, 0x82, len >> 8, len & 255] : [tag, 0x83, len >> 16, (len >> 8) & 255, len & 255];
+    const out = new Uint8Array(header.length + len);
+    out.set(header); out.set(content, header.length);
+    return out;
+}
+function concatBytes(parts) {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const p of parts) { out.set(p, at); at += p.length; }
+    return out;
+}
+function pkcs8FromPkcs1(pkcs1) {
+    const algorithm = Uint8Array.of(0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00);
+    return der(0x30, concatBytes([der(0x02, Uint8Array.of(0)), algorithm, der(0x04, pkcs1)]));
+}
+async function importPrivateBlock(type, bytes) {
+    if (type === 'ENCRYPTED PRIVATE KEY') throw new Error('Clé privée protégée par mot de passe non prise en charge : exportez-la sans protection ou utilisez la sauvegarde JSON de cette page.');
+    let key;
+    try { key = await crypto.subtle.importKey('pkcs8', type === 'RSA PRIVATE KEY' ? pkcs8FromPkcs1(bytes) : bytes, rsa, true, ['decrypt']); }
+    catch { throw new Error('Clé privée PEM invalide : RSA au format PKCS#8 ou PKCS#1 attendu.'); }
+    return checkRSA(key);
+}
 export async function importPrivate(pem) {
-    return checkRSA(await crypto.subtle.importKey('pkcs8', pemBytes(pem, 'PRIVATE KEY'), rsa, true, ['decrypt']));
+    return importPrivateBlock('PRIVATE KEY', pemBytes(pem, 'PRIVATE KEY'));
 }
 export async function publicFromPrivate(key) {
     const j = await crypto.subtle.exportKey('jwk', key);
@@ -115,16 +139,25 @@ export async function protectPrivate(key, password) {
     } finally { raw.fill(0); }
 }
 export async function restorePrivate(text, password) {
-    if (text.trim().startsWith('-----BEGIN PRIVATE KEY-----')) return importPrivate(text);
-    try {
-        if (text.length > 65536) fail();
-        const o = parse(text);
-        if (o.type !== 'crypto-page-private-key' || o.v !== 1 || o.kdf !== 'PBKDF2-SHA256' || o.iterations !== rounds || o.alg !== 'A256GCM') fail();
-        const salt = decode(o.salt), iv = decode(o.iv);
-        if (salt.length !== 16 || iv.length !== 12) fail();
-        const aes = await passwordKey(password, salt, ['decrypt']);
-        const raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: backupAAD }, aes, decode(o.ct)));
-        try { return checkRSA(await crypto.subtle.importKey('pkcs8', raw, rsa, true, ['decrypt'])); }
-        finally { raw.fill(0); }
-    } catch { throw new Error('Sauvegarde invalide ou phrase secrète incorrecte.'); }
+    if (typeof text !== 'string' || text.length > 131072) throw new Error('Fichier trop volumineux pour contenir une clé.');
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{')) {
+        let o = null;
+        try { o = JSON.parse(trimmed); } catch { o = null; }
+        if (o && typeof o === 'object' && !Array.isArray(o)) {
+            if (typeof o.private_key === 'string') return restorePrivate(o.private_key, password);
+            try {
+                if (o.type !== 'crypto-page-private-key' || o.v !== 1 || o.kdf !== 'PBKDF2-SHA256' || o.iterations !== rounds || o.alg !== 'A256GCM') fail();
+                const salt = decode(o.salt), iv = decode(o.iv);
+                if (salt.length !== 16 || iv.length !== 12) fail();
+                const aes = await passwordKey(password, salt, ['decrypt']);
+                const raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: backupAAD }, aes, decode(o.ct)));
+                try { return checkRSA(await crypto.subtle.importKey('pkcs8', raw, rsa, true, ['decrypt'])); }
+                finally { raw.fill(0); }
+            } catch { throw new Error('Sauvegarde invalide ou phrase secrète incorrecte.'); }
+        }
+    }
+    const m = text.match(/-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/);
+    if (!m) throw new Error('Aucune clé privée lisible : sauvegarde JSON, PEM « PRIVATE KEY » ou « RSA PRIVATE KEY » attendu.');
+    return importPrivateBlock(m[1], decode(m[2].replace(/\s/g, '')));
 }
