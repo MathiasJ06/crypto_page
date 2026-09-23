@@ -1,0 +1,7 @@
+{
+  "name": "crypto-page-local",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/crypto.test.js" },
+  "engines": { "node": ">=22" }
+}
