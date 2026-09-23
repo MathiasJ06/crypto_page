@@ -7,8 +7,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Crypto · Chiffrement local</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="style.css?v=20260923-3">
-  <script type="module" src="script.js?v=20260923-3"></script>
+  <link rel="stylesheet" href="style.css?v=20260923-4">
+  <script type="module" src="script.js?v=20260923-4"></script>
 </head>
 <body>
 <main>
@@ -16,7 +16,7 @@
     <div>
       <span class="eyebrow">CRYPTO / LOCAL</span>
       <h1>Vos mots restent chez vous.</h1>
-      <p>Chiffrez un message pour son destinataire directement dans votre navigateur.</p>
+      <p>Chiffrez et déchiffrez directement dans votre navigateur, sans transmettre vos clés ni vos textes à un serveur.</p>
     </div>
     <span class="badge">Aucun envoi de données</span>
   </header>
@@ -36,81 +36,139 @@
   <fieldset id="app" disabled>
     <legend class="sr-only">Chiffrement local</legend>
 
-    <nav aria-label="Étapes">
-      <button type="button" data-panel="keys" aria-pressed="true">01 · Mes clés</button>
-      <button type="button" data-panel="encrypt" aria-pressed="false">02 · Chiffrer</button>
-      <button type="button" data-panel="decrypt" aria-pressed="false">03 · Déchiffrer</button>
+    <nav class="main-nav" aria-label="Fonctions principales">
+      <button type="button" data-panel="keys" aria-pressed="true" aria-controls="keys-panel">01 · Clés</button>
+      <button type="button" data-panel="encrypt" aria-pressed="false" aria-controls="encrypt-panel">02 · Chiffrer</button>
+      <button type="button" data-panel="decrypt" aria-pressed="false" aria-controls="decrypt-panel">03 · Déchiffrer</button>
     </nav>
 
     <section id="keys-panel">
       <div class="section-title">
         <div>
-          <h2>Votre identité de chiffrement</h2>
-          <p>Partagez uniquement votre clé publique. Votre clé privée reste protégée par votre phrase secrète.</p>
+          <h2>Clés</h2>
+          <p>Chargez votre identité habituelle ou créez-en une nouvelle. Ces deux opérations sont volontairement séparées.</p>
         </div>
-        <button id="clear" class="danger" type="button">Verrouiller et effacer</button>
       </div>
 
-      <div class="grid">
-        <article>
-          <span class="eyebrow">NOUVELLE IDENTITÉ</span>
-          <h3>Créer mes clés</h3>
-          <p>Une paire RSA-OAEP de 3072 bits est générée localement par Web Crypto.</p>
-          <button id="generate" class="primary" type="button">Générer mes clés</button>
-
-          <div class="key-info">
-            <span id="my-state">Aucune clé chargée</span>
-            <output id="my-fingerprint" aria-label="Empreinte de ma clé publique"></output>
-          </div>
-
-          <button id="export-public" type="button" disabled>Télécharger ma clé publique</button>
-        </article>
-
-        <article>
-          <span class="eyebrow">SAUVEGARDE PRIVÉE</span>
-          <h3>Protéger ma clé privée</h3>
-          <p>
-            La sauvegarde privée est un fichier JSON Crypto Page chiffré par AES-256-GCM.
-            Sa clé est dérivée de votre phrase secrète avec PBKDF2-SHA-256.
-          </p>
-
-          <label for="backup-password">Phrase secrète · 12 caractères minimum</label>
-          <input id="backup-password" type="password" autocomplete="new-password" spellcheck="false">
-
-          <label for="backup-confirm">Confirmer la phrase secrète</label>
-          <input id="backup-confirm" type="password" autocomplete="new-password" spellcheck="false">
-
-          <button id="export-private" type="button" disabled>Télécharger la sauvegarde privée</button>
-        </article>
+      <div class="key-tabs" role="tablist" aria-label="Gestion des clés">
+        <button id="identity-tab" type="button" role="tab" data-key-panel="identity" aria-selected="true" aria-controls="identity-subpanel">
+          Mon identité
+        </button>
+        <button id="create-tab" type="button" role="tab" data-key-panel="create" aria-selected="false" aria-controls="create-subpanel">
+          Créer une identité
+        </button>
       </div>
 
-      <article class="restore">
-        <span class="eyebrow">RESTAURATION</span>
-        <h3>Retrouver mes clés</h3>
-        <p>
-          Importez uniquement une sauvegarde privée JSON créée par cette version de Crypto Page.
-          Les PEM privés et les anciens formats ne sont pas acceptés.
-        </p>
+      <section id="identity-subpanel" class="key-subpanel" role="tabpanel" aria-labelledby="identity-tab">
+        <div class="grid">
+          <article>
+            <span class="eyebrow">IDENTITÉ EXISTANTE</span>
+            <h3>Charger mon identité</h3>
+            <p>
+              Sélectionnez votre sauvegarde privée Crypto Page puis saisissez sa phrase secrète.
+              La phrase seule ne suffit pas : le fichier contient votre clé privée chiffrée.
+            </p>
 
-        <label for="restore-password">Phrase secrète de la sauvegarde</label>
-        <input id="restore-password" type="password" autocomplete="current-password" spellcheck="false">
+            <label for="private-file">Sauvegarde privée Crypto Page (.json)</label>
+            <input id="private-file" type="file" accept=".json,application/json">
 
-        <label for="private-file">Sauvegarde privée Crypto Page (.json)</label>
-        <input id="private-file" type="file" accept=".json,application/json">
+            <div id="private-read-status" class="file-read-status neutral" role="status" aria-live="polite">
+              <span id="private-read-title" class="file-read-title">Aucune sauvegarde sélectionnée</span>
+              <span id="private-read-name" class="file-read-name"></span>
+              <span id="private-read-detail" class="file-read-detail"></span>
+            </div>
 
-        <div id="private-read-status" class="file-read-status neutral" role="status" aria-live="polite">
-          <span id="private-read-title" class="file-read-title">Aucune sauvegarde privée lue</span>
-          <span id="private-read-name" class="file-read-name"></span>
-          <span id="private-read-detail" class="file-read-detail"></span>
+            <label for="restore-password">Phrase secrète de la sauvegarde</label>
+            <input id="restore-password" type="password" autocomplete="current-password" spellcheck="false">
+
+            <div class="actions compact-actions">
+              <button id="load-identity" class="primary" type="button" disabled>Charger mon identité</button>
+            </div>
+          </article>
+
+          <article>
+            <span class="eyebrow">IDENTITÉ ACTIVE</span>
+            <h3>État de la clé privée</h3>
+
+            <div id="identity-status" class="identity-status inactive" role="status" aria-live="polite">
+              <span id="identity-status-title" class="identity-status-title">Aucune identité chargée</span>
+              <span id="identity-status-source" class="identity-status-source">Chargez votre sauvegarde privée pour pouvoir déchiffrer.</span>
+              <output id="identity-fingerprint" aria-label="Empreinte publique de l’identité active"></output>
+            </div>
+
+            <p class="hint">
+              Une fois chargée, la clé privée reste uniquement en mémoire dans cet onglet. Elle n’est pas nécessaire pour chiffrer un message destiné à quelqu’un d’autre.
+            </p>
+
+            <div class="actions">
+              <button id="identity-export-public" type="button" disabled>Télécharger ma clé publique</button>
+              <button id="lock-identity" class="danger" type="button" disabled>Verrouiller l’identité</button>
+            </div>
+          </article>
         </div>
-      </article>
+      </section>
+
+      <section id="create-subpanel" class="key-subpanel" role="tabpanel" aria-labelledby="create-tab" hidden>
+        <div class="grid">
+          <article>
+            <span class="eyebrow">NOUVELLE IDENTITÉ</span>
+            <h3>1 · Générer une paire de clés</h3>
+            <p>Une nouvelle paire RSA-OAEP de 3072 bits est générée localement par Web Crypto.</p>
+
+            <button id="generate" class="primary" type="button">Générer une nouvelle identité</button>
+
+            <div id="generated-status" class="identity-status inactive" role="status" aria-live="polite">
+              <span id="generated-status-title" class="identity-status-title">Aucune nouvelle identité générée</span>
+              <span id="generated-status-detail" class="identity-status-source"></span>
+              <output id="generated-fingerprint" aria-label="Empreinte de la nouvelle identité"></output>
+            </div>
+
+            <div class="actions">
+              <button id="generated-export-public" type="button" disabled>Télécharger la clé publique</button>
+            </div>
+          </article>
+
+          <article>
+            <span class="eyebrow">SAUVEGARDE PRIVÉE</span>
+            <h3>2 · Protéger la clé privée</h3>
+            <p>
+              Choisissez une phrase secrète d’au moins 12 caractères. Elle protège la sauvegarde privée,
+              mais ne remplace pas cette sauvegarde.
+            </p>
+
+            <label for="backup-password">Phrase secrète</label>
+            <input id="backup-password" type="password" autocomplete="new-password" spellcheck="false">
+
+            <label for="backup-confirm">Confirmer la phrase secrète</label>
+            <input id="backup-confirm" type="password" autocomplete="new-password" spellcheck="false">
+
+            <div class="actions">
+              <button id="generated-export-private" type="button" disabled>Télécharger la sauvegarde privée</button>
+            </div>
+
+            <div id="generated-backup-read-status" class="file-read-status neutral" role="status" aria-live="polite">
+              <span id="generated-backup-read-title" class="file-read-title">Aucune sauvegarde privée téléchargée</span>
+              <span id="generated-backup-read-name" class="file-read-name"></span>
+              <span id="generated-backup-read-detail" class="file-read-detail"></span>
+            </div>
+
+            <div class="actions activation-actions">
+              <button id="activate-generated" class="primary" type="button" disabled>Utiliser cette identité maintenant</button>
+            </div>
+
+            <p class="hint">
+              L’activation n’est possible qu’après téléchargement de la sauvegarde privée. Conservez le fichier et sa phrase secrète séparément.
+            </p>
+          </article>
+        </div>
+      </section>
     </section>
 
     <section id="encrypt-panel" hidden>
       <div class="section-title">
         <div>
           <h2>Chiffrer pour un destinataire</h2>
-          <p>Le message est chiffré par AES-256-GCM ; sa clé de session est protégée par RSA-OAEP/SHA-256.</p>
+          <p>Seule la clé publique du destinataire est nécessaire. Votre propre clé privée et votre phrase secrète ne sont pas utilisées ici.</p>
         </div>
       </div>
 
@@ -129,9 +187,7 @@
           <output id="recipient-fingerprint" aria-label="Empreinte du destinataire"></output>
         </div>
 
-        <p class="hint">
-          Comparez cette empreinte avec votre destinataire par un autre canal avant le premier échange.
-        </p>
+        <p class="hint">Comparez cette empreinte avec votre destinataire par un autre canal avant le premier échange.</p>
       </article>
 
       <div class="label-row">
@@ -157,12 +213,18 @@
       <div class="section-title">
         <div>
           <h2>Lire un message reçu</h2>
-          <p>Chargez d’abord votre sauvegarde privée dans « Mes clés », puis collez ou importez le message.</p>
+          <p>Chargez d’abord votre identité dans « Clés → Mon identité », puis collez ou importez le message chiffré.</p>
         </div>
       </div>
 
       <label for="message-file">Importer un message Crypto Page</label>
       <input id="message-file" type="file" accept=".crypto,.json,application/json,text/plain">
+
+      <div id="message-read-status" class="file-read-status neutral" role="status" aria-live="polite">
+        <span id="message-read-title" class="file-read-title">Aucun fichier de message lu</span>
+        <span id="message-read-name" class="file-read-name"></span>
+        <span id="message-read-detail" class="file-read-detail"></span>
+      </div>
 
       <label for="decrypt-input">Message chiffré</label>
       <textarea id="decrypt-input" rows="7" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
@@ -176,16 +238,13 @@
       <label for="decrypt-output">Message déchiffré · visible uniquement ici</label>
       <textarea id="decrypt-output" rows="8" readonly spellcheck="false"></textarea>
 
-      <p class="hint">
-        AES-GCM vérifie l’intégrité du message. Ce protocole ne prouve toutefois pas l’identité de l’expéditeur.
-      </p>
+      <p class="hint">AES-GCM vérifie l’intégrité du message. Ce protocole ne prouve toutefois pas l’identité de l’expéditeur.</p>
     </section>
   </fieldset>
 
   <footer>
     Traitement local · Web Crypto · Aucun script tiers<br>
-    Fermez ou verrouillez cet onglet pour supprimer les références aux clés et effacer les textes de l’interface.
-    Les fichiers déjà téléchargés restent sur votre appareil.
+    Fermez l’onglet ou verrouillez votre identité pour libérer la référence à la clé privée. Les fichiers déjà téléchargés restent sur votre appareil.
   </footer>
 </main>
 </body>
