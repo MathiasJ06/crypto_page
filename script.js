@@ -55,6 +55,27 @@ for (const button of document.querySelectorAll('[data-panel]')) button.addEventL
         const active = b === button; b.setAttribute('aria-pressed', String(active)); $(b.dataset.panel + '-panel').hidden = !active;
     }
 });
+const keyTabs = [...document.querySelectorAll('[data-key-tab]')];
+function activateKeyTab(button) {
+    for (const tab of keyTabs) {
+        const active = tab === button;
+        tab.setAttribute('aria-selected', String(active));
+        $(tab.getAttribute('aria-controls')).hidden = !active;
+    }
+}
+for (const button of keyTabs) {
+    button.addEventListener('click', () => activateKeyTab(button));
+    button.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const current = keyTabs.indexOf(button);
+        const next = event.key === 'Home' ? 0
+            : event.key === 'End' ? keyTabs.length - 1
+            : (current + (event.key === 'ArrowRight' ? 1 : keyTabs.length - 1)) % keyTabs.length;
+        keyTabs[next].focus();
+        activateKeyTab(keyTabs[next]);
+    });
+}
 $('generate').addEventListener('click', () => {
     if (!replaceAllowed()) return;
     run(async generation => { const pair = await engine.generateKeys(); await setIdentity(pair, generation, false); status('Clés créées. Téléchargez votre sauvegarde privée chiffrée avant de fermer cet onglet.'); });

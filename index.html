@@ -28,28 +28,39 @@
     </nav>
     <section id="keys-panel">
       <div class="section-title"><div><h2>Votre identité de chiffrement</h2><p>Partagez votre clé publique. Gardez votre clé privée pour vous.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
-      <div class="grid">
-        <article>
-          <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer mes clés</h3>
-          <p>Une paire RSA de 3072 bits, générée sur cet appareil.</p>
-          <button id="generate" class="primary" type="button">Générer mes clés</button>
-          <div class="key-info"><span id="my-state">Aucune clé chargée</span><output id="my-fingerprint" aria-label="Empreinte de ma clé publique"></output></div>
-          <button id="export-public" type="button" disabled>Télécharger ma clé publique</button>
-        </article>
-        <article>
-          <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger ma clé privée</h3>
-          <p>Une phrase longue et unique protège le fichier. Conservez le fichier et sa phrase : sans eux, les messages ne pourront plus être déchiffrés.</p>
-          <label for="backup-password">Phrase secrète (12 caractères minimum)</label><input id="backup-password" type="password" autocomplete="off" spellcheck="false">
-          <label for="backup-confirm">Confirmer la phrase secrète</label><input id="backup-confirm" type="password" autocomplete="off" spellcheck="false">
-          <button id="export-private" type="button" disabled>Télécharger la sauvegarde chiffrée</button>
-        </article>
-      </div>
-      <article class="restore"><h3>Retrouver mes clés</h3><p>Choisissez votre sauvegarde privée, saisissez sa phrase secrète si elle est chiffrée, puis cliquez sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
-        <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
-        <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
-        <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
-        <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Formats acceptés : sauvegarde JSON de cette application ou clé PEM « BEGIN PRIVATE KEY ».</p>
+      <article class="identity-status">
+        <span id="my-state">Aucune clé chargée</span>
+        <output id="my-fingerprint" aria-label="Empreinte de ma clé publique"></output>
+        <button id="export-public" type="button" disabled>Télécharger ma clé publique</button>
       </article>
+      <nav class="key-tabs" role="tablist" aria-label="Gestion de mes clés">
+        <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="true" data-key-tab="create">Créer mes clés</button>
+        <button id="key-tab-load" type="button" role="tab" aria-controls="key-load-panel" aria-selected="false" data-key-tab="load">Charger mes clés</button>
+      </nav>
+      <section id="key-create-panel" role="tabpanel" aria-labelledby="key-tab-create" data-key-panel="create">
+        <div class="grid">
+          <article>
+            <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer mes clés</h3>
+            <p>Une paire RSA de 3072 bits, générée sur cet appareil.</p>
+            <button id="generate" class="primary" type="button">Générer mes clés</button>
+          </article>
+          <article>
+            <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger ma clé privée</h3>
+            <p>Une phrase longue et unique protège le fichier. Conservez le fichier et sa phrase : sans eux, les messages ne pourront plus être déchiffrés.</p>
+            <label for="backup-password">Phrase secrète (12 caractères minimum)</label><input id="backup-password" type="password" autocomplete="off" spellcheck="false">
+            <label for="backup-confirm">Confirmer la phrase secrète</label><input id="backup-confirm" type="password" autocomplete="off" spellcheck="false">
+            <button id="export-private" type="button" disabled>Télécharger la sauvegarde chiffrée</button>
+          </article>
+        </div>
+      </section>
+      <section id="key-load-panel" role="tabpanel" aria-labelledby="key-tab-load" data-key-panel="load" hidden>
+        <article class="restore"><h3>Charger une identité existante</h3><p>Choisissez votre sauvegarde privée, saisissez sa phrase secrète si elle est chiffrée, puis cliquez sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
+          <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
+          <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
+          <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
+          <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Formats acceptés : sauvegarde JSON de cette application ou clé PEM « BEGIN PRIVATE KEY ».</p>
+        </article>
+      </section>
     </section>
     <section id="encrypt-panel" hidden>
       <div class="section-title"><div><h2>Chiffrer pour un destinataire</h2><p>Seul le détenteur de sa clé privée pourra lire le message.</p></div></div>
