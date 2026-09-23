@@ -1,4 +1,4 @@
-import * as engine from './crypto-engine.js';
+import * as engine from './crypto-engine.js?v=20260923-opaque1';
 const $ = id => document.getElementById(id);
 let identity = null, recipient = null, saved = true, busy = false, epoch = 0;
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }

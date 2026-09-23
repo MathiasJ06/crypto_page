@@ -66,13 +66,14 @@ export async function encrypt(key, message) {
     const kid = await fingerprint(key);
     const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(kid) }, aes, data);
     const ek = await crypto.subtle.encrypt(rsa, key, await crypto.subtle.exportKey('raw', aes));
-    return JSON.stringify({ v: 2, alg, kid, iv: encode(iv), ek: encode(new Uint8Array(ek)), ct: encode(new Uint8Array(ct)) });
+    const envelope = JSON.stringify({ v: 2, alg, kid, iv: encode(iv), ek: encode(new Uint8Array(ek)), ct: encode(new Uint8Array(ct)) });
+    return encode(te.encode(envelope));
 }
 export async function decrypt(key, text) {
     try {
         if (text.length > MAX_ENVELOPE) fail();
-        if (!text.trim().startsWith('{')) return await decryptLegacy(key, text.trim());
-        const o = parse(text);
+        const envelopeText = td.decode(decode(text.trim()));
+        const o = parse(envelopeText);
         if (o.v !== 2 || o.alg !== alg || o.kid !== await fingerprint(await publicFromPrivate(key))) fail();
         const iv = decode(o.iv), ek = decode(o.ek), ct = decode(o.ct);
         if (iv.length !== 12 || ek.length !== key.algorithm.modulusLength / 8 || ct.length < 16 || ct.length > MAX_TEXT_BYTES + 16) fail();
@@ -81,23 +82,6 @@ export async function decrypt(key, text) {
         const aes = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
         return td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad(o.kid) }, aes, ct));
     } catch { throw new Error('Déchiffrement impossible : mauvaise clé, message altéré ou format non pris en charge.'); }
-}
-async function decryptLegacy(key, text) {
-    const data = decode(text);
-    if (data.length < 5) fail();
-    const len = new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0);
-    if (len < 1 || len >= data.length - 4) fail();
-    const token = decode(td.decode(data.subarray(4, 4 + len)));
-    const wrapped = decode(td.decode(data.subarray(4 + len)));
-    if (wrapped.length !== key.algorithm.modulusLength / 8 || token.length < 73 || token[0] !== 128 || (token.length - 57) % 16) fail();
-    const fernet = decode(td.decode(await crypto.subtle.decrypt(rsa, key, wrapped)));
-    if (fernet.length !== 32) fail();
-    const signing = await crypto.subtle.importKey('raw', fernet.subarray(0, 16), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-    if (!await crypto.subtle.verify('HMAC', signing, token.subarray(-32), token.subarray(0, -32))) fail();
-    const aes = await crypto.subtle.importKey('raw', fernet.subarray(16), 'AES-CBC', false, ['decrypt']);
-    const clear = await crypto.subtle.decrypt({ name: 'AES-CBC', iv: token.subarray(9, 25) }, aes, token.subarray(25, -32));
-    if (clear.byteLength > MAX_TEXT_BYTES) fail();
-    return td.decode(clear);
 }
 async function passwordKey(password, salt, usages) {
     const base = await crypto.subtle.importKey('raw', te.encode(password), 'PBKDF2', false, ['deriveKey']);

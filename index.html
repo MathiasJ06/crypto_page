@@ -8,7 +8,7 @@
   <title>Crypto · Chiffrement local</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="script.js?v=20260923-suffix1"></script>
+  <script type="module" src="script.js?v=20260923-opaque1"></script>
 </head>
 <body>
 <main>
@@ -73,6 +73,7 @@
       <label for="encrypt-input">Votre message · 2 Mio maximum</label><textarea id="encrypt-input" rows="7" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Votre texte reste sur cet appareil."></textarea>
       <div class="actions"><button id="encrypt" class="primary" type="button" disabled>Chiffrer le message</button></div>
       <label for="encrypt-output">Message chiffré à transmettre</label><textarea id="encrypt-output" rows="5" readonly spellcheck="false"></textarea>
+      <p class="hint">Format réencodé pour masquer la structure JSON. Ce réencodage n’ajoute pas de protection cryptographique.</p>
       <div class="actions"><button id="copy-encrypted" type="button" disabled>Copier le message chiffré</button><button id="save-encrypted" type="button" disabled>Télécharger le message</button></div>
     </section>
     <section id="decrypt-panel" hidden>
@@ -81,7 +82,7 @@
       <label for="decrypt-input">Message chiffré</label><textarea id="decrypt-input" rows="6" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
       <div class="actions"><button id="decrypt" class="primary" type="button" disabled>Déchiffrer le message</button></div>
       <label for="decrypt-output">Message déchiffré · visible uniquement ici</label><textarea id="decrypt-output" rows="8" readonly spellcheck="false"></textarea>
-      <p class="hint">Les anciens messages RSA + Fernet sont également lisibles. Le chiffrement ne vérifie pas l’identité de l’expéditeur.</p>
+      <p class="hint">Cette version lit uniquement les messages au format réencodé. Le chiffrement ne vérifie pas l’identité de l’expéditeur.</p>
     </section>
   </fieldset>
   <footer>Traitement local · Web Crypto · Aucun script tiers<br>Fermez ou verrouillez cet onglet pour libérer les clés et effacer les textes de l’interface. Les fichiers téléchargés restent sur votre appareil.</footer>
