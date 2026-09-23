@@ -1,271 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chiffrement Hybride - RSA + Fernet</title>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        /* Styles pour les logs */
-        .log-section {
-            margin-top: 20px;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-        }
-        .log-section h4 {
-            margin-bottom: 10px;
-            color: #555;
-            cursor: pointer;
-        }
-        .log-section h4:hover {
-            color: #333;
-        }
-        .log-container {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .log-container pre {
-            margin: 0;
-            padding: 0;
-            background: transparent;
-            border: none;
-        }
-        .copy-btn, .clear-btn {
-            margin-top: 8px;
-            margin-right: 8px;
-            padding: 6px 12px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-        .copy-btn {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 3px;
-        }
-        .copy-btn:hover {
-            background-color: #218838;
-        }
-        .clear-btn {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 3px;
-        }
-        .clear-btn:hover {
-            background-color: #c82333;
-        }
-        .log-toggle {
-            display: inline-block;
-            margin-left: 8px;
-            font-size: 12px;
-            color: #666;
-            cursor: pointer;
-        }
-        .log-toggle:hover {
-            color: #333;
-        }
-        
-        /* Styles pour les indicateurs de statut */
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        .status-ok {
-            background-color: #28a745;
-        }
-        .status-error {
-            background-color: #dc3545;
-        }
-        .status-warning {
-            background-color: #ffc107;
-        }
-        
-        /* Style pour les sections de clés */
-        .key-info {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto · Chiffrement local</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="script.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Chiffrement Hybride RSA + Fernet</h1>
-
-        <div class="loading" id="loading">
-            <p>Chargement de Pyodide...</p>
-            <progress id="progress-bar" value="0" max="100"></progress>
-        </div>
-
-        <div class="content" id="content" style="display: none;">
-            <!-- Onglets principaux -->
-            <div class="tabs">
-                <button class="tab-button active" data-tab="keys">🔑 Gestion des clés</button>
-                <button class="tab-button" data-tab="encrypt">🔒 Chiffrer</button>
-                <button class="tab-button" data-tab="decrypt">🔓 Déchiffrer</button>
-            </div>
-
-            <!-- Onglet Gestion des clés -->
-            <div class="tab-content active" id="keys-tab">
-                <!-- Sous-onglets pour la gestion des clés -->
-                <div class="sub-tabs">
-                    <button class="sub-tab-button active" data-sub-tab="load-keys">Chargement des clés</button>
-                    <button class="sub-tab-button" data-sub-tab="create-rsa">Création de paire RSA</button>
-                </div>
-
-                <!-- Sous-onglet Chargement des clés -->
-                <div class="sub-tab-content active" id="load-keys-subtab">
-                    <div class="section">
-                        <h3>Mes clés</h3>
-                        <div class="my-keys-section">
-                            <div class="key-status">
-                                <div class="key-status-item">
-                                    <span>Clé publique : </span>
-                                    <span id="public-key-status">❌ Non chargée</span>
-                                    <span id="public-key-info" class="key-info"></span>
-                                </div>
-                                <div class="key-status-item">
-                                    <span>Clé privée : </span>
-                                    <span id="private-key-status">❌ Non chargée</span>
-                                    <span id="private-key-info" class="key-info"></span>
-                                </div>
-                            </div>
-                            <div class="key-buttons">
-                                <button id="load-my-public-key-btn">Charger clé publique</button>
-                                <button id="load-my-private-key-btn">Charger clé privée</button>
-                                <button id="clear-keys-btn" class="primary-btn">Effacer mes clés</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section">
-                        <h3>Clé publique de l'interlocuteur</h3>
-                        <div class="interlocutor-key-section">
-                            <div class="key-status-item">
-                                <span>Clé publique interlocuteur : </span>
-                                <span id="interlocutor-key-status">❌ Non chargée</span>
-                                <span id="interlocutor-key-info" class="key-info"></span>
-                            </div>
-                            <button id="load-interlocutor-key-btn" class="primary-btn">Charger clé publique de l'interlocuteur</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sous-onglet Création de paire RSA -->
-                <div class="sub-tab-content" id="create-rsa-subtab">
-                    <div class="section">
-                        <h3>Générer une nouvelle paire de clés RSA</h3>
-                        <div class="create-rsa-section">
-                            <div class="key-prefix-input">
-                                <label for="key-prefix">Préfixe des clés:</label>
-                                <input type="text" id="key-prefix" placeholder="ex: mon_nom" />
-                            </div>
-                            <button id="generate-rsa-keys-btn" class="primary-btn">Générer paire RSA</button>
-                        </div>
-                    </div>
-                    <div class="section">
-                        <h3>Télécharger les clés générées</h3>
-                        <div class="download-keys-section">
-                            <button id="download-rsa-public-key-btn" class="primary-btn" disabled>Télécharger clé publique</button>
-                            <button id="download-rsa-private-key-btn" class="primary-btn" disabled>Télécharger clé privée</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Onglet Chiffrement -->
-            <div class="tab-content" id="encrypt-tab">
-                <div class="section">
-                    <h3>Message à chiffrer</h3>
-                    <textarea id="encrypt-input" rows="8" placeholder="Entrez votre message ici..." spellcheck="false"></textarea>
-                </div>
-
-                <div class="section">
-                    <button id="encrypt-btn" class="primary-btn">Chiffrer le message</button>
-                    <button id="encrypt-toggle-log-btn" class="log-toggle">Afficher les logs</button>
-                </div>
-
-                <div class="section">
-                    <h3>Message chiffré</h3>
-                    <textarea id="encrypt-output" rows="8" readonly placeholder="Le message chiffré apparaîtra ici..."></textarea>
-                </div>
-                
-                <!-- Fenêtre de logs pour le chiffrement -->
-                <div class="section log-section" id="encrypt-log-section" style="display: none;">
-                    <h4>Logs du processus de chiffrement <span class="log-toggle" id="encrypt-hide-log-btn">Masquer</span></h4>
-                    <div class="log-container">
-                        <pre id="encrypt-log"></pre>
-                        <button id="encrypt-copy-log-btn" class="copy-btn">Copier les logs</button>
-                        <button id="encrypt-clear-log-btn" class="clear-btn">Effacer</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Onglet Déchiffrement -->
-            <div class="tab-content" id="decrypt-tab">
-                <div class="section">
-                    <h3>Message chiffré reçu</h3>
-                    <textarea id="decrypt-input" rows="8" placeholder="Collez le message chiffré ici..." spellcheck="false"></textarea>
-                </div>
-
-                <div class="section">
-                    <button id="decrypt-btn" class="primary-btn">Déchiffrer le message</button>
-                    <button id="decrypt-toggle-log-btn" class="log-toggle">Afficher les logs</button>
-                </div>
-
-                <div class="section">
-                    <h3>Message déchiffré</h3>
-                    <textarea id="decrypt-output" rows="8" readonly placeholder="Le message déchiffré apparaîtra ici..."></textarea>
-                </div>
-                
-                <!-- Fenêtre de logs pour le déchiffrement -->
-                <div class="section log-section" id="decrypt-log-section" style="display: none;">
-                    <h4>Logs du processus de déchiffrement <span class="log-toggle" id="decrypt-hide-log-btn">Masquer</span></h4>
-                    <div class="log-container">
-                        <pre id="decrypt-log"></pre>
-                        <button id="decrypt-copy-log-btn" class="copy-btn">Copier les logs</button>
-                        <button id="decrypt-clear-log-btn" class="clear-btn">Effacer</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Inputs cachés pour la sélection de fichiers -->
-    <input type="file" id="file-input-my-public" accept=".txt,.key,.pem" style="display: none;">
-    <input type="file" id="file-input-my-private" accept=".txt,.key,.pem" style="display: none;">
-    <input type="file" id="file-input-interlocutor" accept=".txt,.key,.pem" style="display: none;">
-
-    <script>
-        // Attendre que Pyodide soit chargé avant de lancer l'application
-        function waitForPyodide() {
-            if (typeof loadPyodide === 'function') {
-                // Pyodide est prêt, charger l'application
-                const script = document.createElement('script');
-                script.src = 'script.js';
-                document.body.appendChild(script);
-            } else {
-                // Réessayer après un court délai
-                setTimeout(waitForPyodide, 100);
-            }
-        }
-        
-        // Démarrer la vérification
-        waitForPyodide();
-    </script>
+<main>
+  <header>
+    <div><span class="eyebrow">CRYPTO / LOCAL</span><h1>Vos mots restent chez vous.</h1><p>Chiffrez un message pour son destinataire, directement sur votre appareil.</p></div>
+    <span class="badge">Aucun envoi de données</span>
+  </header>
+  <aside class="privacy">Les clés et les textes restent en mémoire dans cet onglet. Aucun compte, stockage automatique ou service externe. Seuls les fichiers que vous choisissez de télécharger sont enregistrés.</aside>
+  <div id="status" role="status" aria-live="polite">Initialisation locale… Si ce message persiste, vérifiez que JavaScript est activé et ouvrez la page via HTTPS ou localhost.</div>
+  <noscript>JavaScript doit être activé pour chiffrer localement les messages.</noscript>
+  <fieldset id="app" disabled>
+    <legend class="sr-only">Chiffrement local</legend>
+    <nav aria-label="Étapes">
+      <button type="button" data-panel="keys" aria-pressed="true">01 · Mes clés</button>
+      <button type="button" data-panel="encrypt" aria-pressed="false">02 · Chiffrer</button>
+      <button type="button" data-panel="decrypt" aria-pressed="false">03 · Déchiffrer</button>
+    </nav>
+    <section id="keys-panel">
+      <div class="section-title"><div><h2>Votre identité de chiffrement</h2><p>Partagez votre clé publique. Gardez votre clé privée pour vous.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
+      <div class="grid">
+        <article>
+          <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer mes clés</h3>
+          <p>Une paire RSA de 3072 bits, générée sur cet appareil.</p>
+          <button id="generate" class="primary" type="button">Générer mes clés</button>
+          <div class="key-info"><span id="my-state">Aucune clé chargée</span><output id="my-fingerprint" aria-label="Empreinte de ma clé publique"></output></div>
+          <button id="export-public" type="button" disabled>Télécharger ma clé publique</button>
+        </article>
+        <article>
+          <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger ma clé privée</h3>
+          <p>Une phrase longue et unique protège le fichier. Conservez le fichier et sa phrase : sans eux, les messages ne pourront plus être déchiffrés.</p>
+          <label for="backup-password">Phrase secrète (12 caractères minimum)</label><input id="backup-password" type="password" autocomplete="off" spellcheck="false">
+          <label for="backup-confirm">Confirmer la phrase secrète</label><input id="backup-confirm" type="password" autocomplete="off" spellcheck="false">
+          <button id="export-private" type="button" disabled>Télécharger la sauvegarde chiffrée</button>
+        </article>
+      </div>
+      <article class="restore"><h3>Retrouver mes clés</h3><p>Importez votre sauvegarde chiffrée ou une ancienne clé privée PEM. La clé publique correspondante sera retrouvée automatiquement.</p>
+        <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
+        <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
+      </article>
+    </section>
+    <section id="encrypt-panel" hidden>
+      <div class="section-title"><div><h2>Chiffrer pour un destinataire</h2><p>Seul le détenteur de sa clé privée pourra lire le message.</p></div></div>
+      <article><label for="recipient-file">Clé publique du destinataire (.pem ou .key)</label><input id="recipient-file" type="file" accept=".pem,.key,.txt">
+      <div class="key-info"><span id="recipient-state">Aucun destinataire chargé</span><output id="recipient-fingerprint" aria-label="Empreinte du destinataire"></output></div>
+      <p class="hint">Comparez cette empreinte avec votre destinataire par un autre moyen de communication avant le premier échange.</p></article>
+      <label for="encrypt-input">Votre message · 2 Mio maximum</label><textarea id="encrypt-input" rows="7" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Votre texte reste sur cet appareil."></textarea>
+      <div class="actions"><button id="encrypt" class="primary" type="button" disabled>Chiffrer le message</button></div>
+      <label for="encrypt-output">Message chiffré à transmettre</label><textarea id="encrypt-output" rows="5" readonly spellcheck="false"></textarea>
+      <div class="actions"><button id="copy-encrypted" type="button" disabled>Copier le message chiffré</button><button id="save-encrypted" type="button" disabled>Télécharger le message</button></div>
+    </section>
+    <section id="decrypt-panel" hidden>
+      <div class="section-title"><div><h2>Lire un message reçu</h2><p>Chargez votre clé privée dans « Mes clés », puis collez ou importez le message.</p></div></div>
+      <label for="message-file">Importer un message chiffré</label><input id="message-file" type="file" accept=".json,.txt,.crypto">
+      <label for="decrypt-input">Message chiffré</label><textarea id="decrypt-input" rows="6" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      <div class="actions"><button id="decrypt" class="primary" type="button" disabled>Déchiffrer le message</button></div>
+      <label for="decrypt-output">Message déchiffré · visible uniquement ici</label><textarea id="decrypt-output" rows="8" readonly spellcheck="false"></textarea>
+      <p class="hint">Les anciens messages RSA + Fernet sont également lisibles. Le chiffrement ne vérifie pas l’identité de l’expéditeur.</p>
+    </section>
+  </fieldset>
+  <footer>Traitement local · Web Crypto · Aucun script tiers<br>Fermez ou verrouillez cet onglet pour libérer les clés et effacer les textes de l’interface. Les fichiers téléchargés restent sur votre appareil.</footer>
+</main>
 </body>
 </html>

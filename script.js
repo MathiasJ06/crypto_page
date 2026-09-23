@@ -1,597 +1,127 @@
-// ============================================================================
-// Chiffrement Hybride - Application de chiffrement RSA + Fernet
-// ============================================================================
-
-// Variables globales
-let pyodide;
-let isPyodideReady = false;
-let pythonModuleLoaded = false;
-
-// Stockage des clés (UNIQUEMENT EN MÉMOIRE, jamais en localStorage/sessionStorage)
-let keys = {
-    myPublic: { value: "", name: "" },
-    myPrivate: { value: "", name: "" },
-    interlocutorPublic: { value: "", name: "" }
-};
-
-// ============================================================================
-// INITIALISATION DE PYODIDE
-// ============================================================================
-
-/**
- * Initialise Pyodide et charge les dépendances nécessaires
- */
-async function initializePyodide() {
-    const progressBar = document.getElementById('progress-bar');
-    const loadingDiv = document.getElementById('loading');
-    const contentDiv = document.getElementById('content');
-
+import * as engine from './crypto-engine.js';
+const $ = id => document.getElementById(id);
+let identity = null, recipient = null, saved = true, busy = false, epoch = 0;
+function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
+function sync() {
+    $('export-public').disabled = !identity;
+    $('export-private').disabled = !identity;
+    $('encrypt').disabled = !recipient;
+    $('decrypt').disabled = !identity;
+    $('copy-encrypted').disabled = !$('encrypt-output').value;
+    $('save-encrypted').disabled = !$('encrypt-output').value;
+}
+async function run(action) {
+    if (busy) return;
+    busy = true; const generation = epoch;
+    $('app').disabled = true;
+    status('Traitement local en cours…');
+    try { await action(generation); }
+    catch (error) { if (generation === epoch) status(error.message || 'Opération impossible.', true); }
+    finally { if (generation === epoch) { busy = false; $('app').disabled = false; sync(); } }
+}
+function stillCurrent(generation) { if (epoch !== generation) throw new Error('Opération annulée.'); }
+function replaceAllowed() { return !identity || saved || confirm('La clé actuelle n’a pas été sauvegardée. La remplacer rendra ses messages illisibles si vous n’en avez aucune copie. Continuer ?'); }
+async function setIdentity(pair, generation, isSaved) {
+    const fp = await engine.fingerprint(pair.publicKey);
+    stillCurrent(generation);
+    identity = pair; saved = isSaved;
+    $('my-state').textContent = `Clés chargées · RSA ${pair.publicKey.algorithm.modulusLength} bits`;
+    $('my-fingerprint').textContent = fp;
+    $('decrypt-output').value = '';
+}
+function download(text, name) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function fileText(file, max) {
+    if (!file || file.size > max) throw new Error('Fichier absent ou trop volumineux.');
+    return file.text();
+}
+function clear() {
+    epoch++; busy = false; identity = null; recipient = null; saved = true;
+    for (const el of document.querySelectorAll('textarea, input')) el.value = '';
+    $('my-state').textContent = 'Aucune clé chargée'; $('recipient-state').textContent = 'Aucun destinataire chargé';
+    $('my-fingerprint').textContent = ''; $('recipient-fingerprint').textContent = '';
+    $('app').disabled = !globalThis.crypto?.subtle; sync();
+    status('Onglet verrouillé : clés libérées et textes effacés de l’interface.');
+}
+for (const button of document.querySelectorAll('[data-panel]')) button.addEventListener('click', () => {
+    for (const b of document.querySelectorAll('[data-panel]')) {
+        const active = b === button; b.setAttribute('aria-pressed', String(active)); $(b.dataset.panel + '-panel').hidden = !active;
+    }
+});
+$('generate').addEventListener('click', () => {
+    if (!replaceAllowed()) return;
+    run(async generation => { const pair = await engine.generateKeys(); await setIdentity(pair, generation, false); status('Clés créées. Téléchargez votre sauvegarde privée chiffrée avant de fermer cet onglet.'); });
+});
+$('export-public').addEventListener('click', () => run(async generation => {
+    const text = await engine.publicPEM(identity.publicKey); stillCurrent(generation);
+    download(text, 'ma-cle-publique.pem'); status('Clé publique prête à partager.');
+}));
+$('export-private').addEventListener('click', () => run(async generation => {
+    let password = $('backup-password').value;
     try {
-        // Vérifier que loadPyodide est disponible
-        if (typeof loadPyodide !== 'function') {
-            throw new Error('loadPyodide non disponible - le script Pyodide ne s\'est pas chargé correctement');
-        }
-
-        pyodide = await loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/",
-            onDownloadProgress: (loaded, total) => {
-                const percent = (loaded / total) * 100;
-                progressBar.value = percent;
-            }
-        });
-
-        // Charger le package cryptography
-        await pyodide.loadPackage("cryptography");
-        isPyodideReady = true;
-
-        // Charger le module crypto
-        await loadPythonModules();
-
-        loadingDiv.style.display = 'none';
-        contentDiv.style.display = 'block';
-
-        // Initialiser l'interface
-        setupEventListeners();
-        updateKeyStatus();
-
-    } catch (error) {
-        console.error("Erreur lors du chargement de Pyodide :", error);
-        loadingDiv.innerHTML = `
-            <p style="color: #dc3545;">❌ Erreur lors du chargement de Pyodide</p>
-            <p style="color: #666; font-size: 14px; margin-top: 10px;">
-                Veuillez vérifier votre connexion internet.<br>
-                Pyodide nécessite une connexion pour se charger (~10-15 Mo).
-            </p>
-            <p style="color: #666; font-size: 12px; margin-top: 10px;">
-                Pour tester localement: <code>python -m http.server 8000</code><br>
-                Puis ouvrez <code>http://localhost:8000</code>
-            </p>
-            <button onclick="location.reload()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                Recharger la page
-            </button>
-        `;
-    }
-}
-
-/**
- * Charge les modules Python nécessaires
- */
-async function loadPythonModules() {
-    if (!isPyodideReady || pythonModuleLoaded) return;
-
-    try {
-        // Charger le package crypto
-        const cryptoCode = await fetch('crypto/__init__.py').then(r => r.text());
-        await pyodide.runPythonAsync(cryptoCode);
-        
-        pythonModuleLoaded = true;
-        console.log("✅ Modules Python chargés avec succès");
-        
-    } catch (error) {
-        console.error("❌ Erreur lors du chargement des modules Python :", error);
-        throw error;
-    }
-}
-
-// ============================================================================
-// UTILITAIRES
-// ============================================================================
-
-/**
- * Met à jour l'affichage du statut des clés
- */
-function updateKeyStatus() {
-    const statusMap = {
-        'public-key-status': keys.myPublic.value ? '✅ Chargée' : '❌ Non chargée',
-        'private-key-status': keys.myPrivate.value ? '✅ Chargée' : '❌ Non chargée',
-        'interlocutor-key-status': keys.interlocutorPublic.value ? '✅ Chargée' : '❌ Non chargée'
-    };
-    
-    const infoMap = {
-        'public-key-info': keys.myPublic.name ? `(${keys.myPublic.name})` : '',
-        'private-key-info': keys.myPrivate.name ? `(${keys.myPrivate.name})` : '',
-        'interlocutor-key-info': keys.interlocutorPublic.name ? `(${keys.interlocutorPublic.name})` : ''
-    };
-    
-    for (const [id, status] of Object.entries(statusMap)) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = status;
-            element.className = keys.myPublic.value ? 'ok' : 'error';
-        }
-    }
-    
-    for (const [id, info] of Object.entries(infoMap)) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = info;
-        }
-    }
-}
-
-/**
- * Ajoute un message aux logs
- */
-function addLog(logElementId, message, type = 'INFO') {
-    const logElement = document.getElementById(logElementId);
-    if (logElement) {
-        const timestamp = new Date().toLocaleTimeString();
-        logElement.textContent += `[${timestamp}] [${type}] ${message}\n`;
-        // Faire défiler vers le bas
-        logElement.scrollTop = logElement.scrollHeight;
-    }
-}
-
-/**
- * Efface les logs
- */
-function clearLog(logElementId) {
-    const logElement = document.getElementById(logElementId);
-    if (logElement) {
-        logElement.textContent = '';
-    }
-}
-
-/**
- * Copie les logs dans le presse-papiers
- */
-function copyLog(logElementId, successMessage = 'Logs copiés !') {
-    const logElement = document.getElementById(logElementId);
-    if (logElement && logElement.textContent) {
-        navigator.clipboard.writeText(logElement.textContent)
-            .then(() => alert(successMessage))
-            .catch(err => console.error('Erreur copie:', err));
-    }
-}
-
-// ============================================================================
-// GESTION DES CLÉS
-// ============================================================================
-
-/**
- * Génère une paire de clés RSA
- */
-async function generateRSAKeys() {
-    const generateBtn = document.getElementById('generate-rsa-keys-btn');
-    const originalText = generateBtn.textContent;
-    generateBtn.disabled = true;
-    generateBtn.textContent = "Génération en cours...";
-
-    try {
-        const prefix = document.getElementById('key-prefix').value.trim() || 'ma_cle';
-        const keySize = 3072; // 3072 bits par défaut
-        
-        addLog('encrypt-log', `Génération des clés RSA (${keySize} bits) avec préfixe: ${prefix}`);
-        
-        // Utilisation de PyProxy avec paramètres explicites - PAS d'interpolation
-        const result = await pyodide.runPythonAsync(`
-from crypto.hybrid import generate_rsa_keys
-result = generate_rsa_keys(key_size=${keySize}, password=None)
-result
-`);
-        
-        const keysData = JSON.parse(result);
-        
-        if (!keysData.public_key || !keysData.private_key) {
-            throw new Error("Clés manquantes dans la réponse");
-        }
-        
-        // Stocker les clés en mémoire
-        keys.myPublic = { value: keysData.public_key, name: `${prefix}_public` };
-        keys.myPrivate = { value: keysData.private_key, name: `${prefix}_private` };
-        
-        addLog('encrypt-log', `Clés générées: ${prefix}_public, ${prefix}_private`);
-        
-        updateKeyStatus();
-        
-        // Activer les boutons de téléchargement
-        document.getElementById('download-rsa-public-key-btn').disabled = false;
-        document.getElementById('download-rsa-private-key-btn').disabled = false;
-        
-        alert(`✅ Paire de clés RSA générée avec succès !\n\nPréfixe: ${prefix}\nTaille: ${keysData.key_size} bits`);
-        
-    } catch (error) {
-        console.error("Erreur génération RSA:", error);
-        addLog('encrypt-log', `Erreur: ${error.message}`, 'ERROR');
-        alert(`❌ Erreur: ${error.message}`);
-    } finally {
-        generateBtn.disabled = false;
-        generateBtn.textContent = originalText;
-    }
-}
-
-/**
- * Charge une clé depuis un fichier
- */
-function loadKeyFromFile(keyType, fileInputId, keyProperty) {
-    const fileInput = document.getElementById(fileInputId);
-    fileInput.onchange = function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const key = e.target.result.trim();
-            
-            // Validation du format
-            const expectedStart = keyType === 'public' 
-                ? "-----BEGIN PUBLIC KEY-----" 
-                : "-----BEGIN PRIVATE KEY-----";
-            
-            if (!key.startsWith(expectedStart)) {
-                alert(`Le fichier chargé n'est pas une clé ${keyType} RSA valide (format PEM attendu).`);
-                fileInput.value = "";
-                return;
-            }
-            
-            // Stocker la clé en mémoire
-            keys[keyProperty] = { value: key, name: file.name.replace(/\.(key|pem|txt)$/i, '') };
-            fileInput.value = "";
-            updateKeyStatus();
-            
-            alert(`✅ Clé ${keyType} chargée avec succès: ${keys[keyProperty].name}`);
-        };
-        reader.readAsText(file);
-    };
-    fileInput.click();
-}
-
-/**
- * Charge la clé publique de l'interlocuteur
- */
-function loadInterlocutorKeyFromFile() {
-    loadKeyFromFile('public', 'file-input-interlocutor', 'interlocutorPublic');
-}
-
-/**
- * Charge ma clé publique
- */
-function loadMyPublicKeyFromFile() {
-    loadKeyFromFile('public', 'file-input-my-public', 'myPublic');
-}
-
-/**
- * Charge ma clé privée
- */
-function loadMyPrivateKeyFromFile() {
-    loadKeyFromFile('private', 'file-input-my-private', 'myPrivate');
-}
-
-/**
- * Télécharge une clé sous forme de fichier
- */
-function downloadKey(keyProperty, keyType) {
-    const key = keys[keyProperty];
-    
-    if (!key || !key.value) {
-        alert("Aucune clé à télécharger.");
-        return;
-    }
-    
-    const name = key.name || `cle_${keyType}_${new Date().toISOString().slice(0, 10)}`;
-    const blob = new Blob([key.value], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${name}.key`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    addLog('encrypt-log', `Clé ${keyType} téléchargée: ${name}.key`);
-}
-
-/**
- * Efface toutes les clés
- */
-function clearKeys() {
-    if (confirm("⚠️ Voulez-vous vraiment effacer toutes vos clés ?\n\nCette action ne peut pas être annulée.")) {
-        keys.myPublic = { value: "", name: "" };
-        keys.myPrivate = { value: "", name: "" };
-        keys.interlocutorPublic = { value: "", name: "" };
-        
-        updateKeyStatus();
-        
-        // Désactiver les boutons de téléchargement
-        document.getElementById('download-rsa-public-key-btn').disabled = true;
-        document.getElementById('download-rsa-private-key-btn').disabled = true;
-        
-        addLog('encrypt-log', 'Toutes les clés ont été effacées');
-        alert("✅ Toutes les clés ont été effacées.");
-    }
-}
-
-// ============================================================================
-// CHIFFREMENT / DÉCHIFFREMENT
-// ============================================================================
-
-/**
- * Chiffre un message avec chiffrement hybride
- */
-async function encryptMessage() {
-    const inputText = document.getElementById('encrypt-input');
-    const outputText = document.getElementById('encrypt-output');
-    const logText = document.getElementById('encrypt-log');
-    const logSection = document.getElementById('encrypt-log-section');
-    
-    const text = inputText.value.trim();
-    
-    if (!text) {
-        outputText.value = "";
-        return;
-    }
-    
-    if (!keys.interlocutorPublic.value) {
-        outputText.value = "❌ Veuillez d'abord charger la clé publique de votre interlocuteur.";
-        return;
-    }
-    
-    const encryptBtn = document.getElementById('encrypt-btn');
-    const originalText = encryptBtn.textContent;
-    encryptBtn.disabled = true;
-    encryptBtn.textContent = "Chiffrement en cours...";
-    outputText.value = "Chiffrement en cours...";
-    
-    // Afficher les logs
-    logText.textContent = '';
-    logSection.style.display = 'block';
-    addLog('encrypt-log', `Début du chiffrement, message: ${text.length} caractères`);
-    addLog('encrypt-log', `Clé publique du destinataire: ${keys.interlocutorPublic.name || 'Non nommée'}`);
-    
-    try {
-        const startTime = Date.now();
-        
-        // Utilisation de PyProxy sans interpolation pour les paramètres sensibles
-        const result = await pyodide.runPythonAsync(`
-from crypto.hybrid import encrypt_hybrid
-public_key_pem = """${keys.interlocutorPublic.value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-message = """${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-result = encrypt_hybrid(public_key_pem, message)
-result
-`);
-        
-        const endTime = Date.now();
-        
-        addLog('encrypt-log', `Chiffrement terminé en ${endTime - startTime}ms`);
-        addLog('encrypt-log', `Message chiffré: ${result.length} caractères`, 'SUCCESS');
-        
-        outputText.value = result;
-        
-    } catch (error) {
-        console.error("Erreur chiffrement:", error);
-        addLog('encrypt-log', `Erreur: ${error.message}`, 'ERROR');
-        outputText.value = `❌ Erreur: ${error.message}`;
-    } finally {
-        encryptBtn.disabled = false;
-        encryptBtn.textContent = originalText;
-    }
-}
-
-/**
- * Déchiffre un message avec chiffrement hybride
- */
-async function decryptMessage() {
-    const inputText = document.getElementById('decrypt-input');
-    const outputText = document.getElementById('decrypt-output');
-    const logText = document.getElementById('decrypt-log');
-    const logSection = document.getElementById('decrypt-log-section');
-    
-    const text = inputText.value.trim();
-    
-    if (!text) {
-        outputText.value = "";
-        return;
-    }
-    
-    if (!keys.myPrivate.value) {
-        outputText.value = "❌ Veuillez d'abord charger votre clé privée.";
-        return;
-    }
-    
-    const decryptBtn = document.getElementById('decrypt-btn');
-    const originalText = decryptBtn.textContent;
-    decryptBtn.disabled = true;
-    decryptBtn.textContent = "Déchiffrement en cours...";
-    outputText.value = "Déchiffrement en cours...";
-    
-    // Afficher les logs
-    logText.textContent = '';
-    logSection.style.display = 'block';
-    addLog('decrypt-log', `Début du déchiffrement, données: ${text.length} caractères`);
-    addLog('decrypt-log', `Clé privée utilisée: ${keys.myPrivate.name || 'Non nommée'}`);
-    
-    try {
-        const startTime = Date.now();
-        
-        // Utilisation de PyProxy sans interpolation pour les paramètres sensibles
-        const result = await pyodide.runPythonAsync(`
-from crypto.hybrid import decrypt_hybrid
-private_key_pem = """${keys.myPrivate.value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-encrypted_data = """${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"""
-result = decrypt_hybrid(private_key_pem, encrypted_data)
-result
-`);
-        
-        const endTime = Date.now();
-        
-        addLog('decrypt-log', `Déchiffrement terminé en ${endTime - startTime}ms`);
-        addLog('decrypt-log', `Message déchiffré: ${result.length} caractères`, 'SUCCESS');
-        
-        outputText.value = result;
-        
-    } catch (error) {
-        console.error("Erreur déchiffrement:", error);
-        addLog('decrypt-log', `Erreur: ${error.message}`, 'ERROR');
-        outputText.value = `❌ Erreur: ${error.message}`;
-    } finally {
-        decryptBtn.disabled = false;
-        decryptBtn.textContent = originalText;
-    }
-}
-
-// ============================================================================
-// GESTION DES ONGLETS
-// ============================================================================
-
-/**
- * Configure les onglets principaux
- */
-function setupTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabId = button.dataset.tab;
-
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-
-            button.classList.add('active');
-            document.getElementById(`${tabId}-tab`).classList.add('active');
-        });
+        if (password !== $('backup-confirm').value) throw new Error('Les deux phrases secrètes ne correspondent pas.');
+        const text = await engine.protectPrivate(identity.privateKey, password); stillCurrent(generation);
+        download(text, 'ma-cle-privee-protegee.json'); saved = true;
+        status('Téléchargement demandé. Vérifiez que la sauvegarde est bien présente avant de fermer l’onglet.');
+    } finally { password = ''; $('backup-password').value = ''; $('backup-confirm').value = ''; }
+}));
+$('private-file').addEventListener('change', event => {
+    const file = event.target.files[0]; event.target.value = '';
+    if (!file || !replaceAllowed()) return;
+    run(async generation => {
+        let password = $('restore-password').value; $('restore-password').value = '';
+        try {
+            const text = await fileText(file, 65536);
+            const key = await engine.restorePrivate(text, password);
+            const pub = await engine.publicFromPrivate(key);
+            await setIdentity({ privateKey: key, publicKey: pub }, generation, true);
+            status('Clé privée chargée localement. La clé publique correspondante est disponible.');
+        } finally { password = ''; }
     });
+});
+$('recipient-file').addEventListener('change', event => {
+    const file = event.target.files[0]; event.target.value = ''; if (!file) return;
+    recipient = null; $('recipient-state').textContent = 'Aucun destinataire chargé'; $('recipient-fingerprint').textContent = ''; $('encrypt-output').value = '';
+    run(async generation => {
+        const key = await engine.importPublic(await fileText(file, 65536));
+        const fp = await engine.fingerprint(key); stillCurrent(generation);
+        recipient = key; $('recipient-state').textContent = `Destinataire chargé · RSA ${key.algorithm.modulusLength} bits`;
+        $('recipient-fingerprint').textContent = fp;
+        status('Clé du destinataire chargée. Comparez son empreinte avant le premier échange.');
+    });
+});
+$('encrypt').addEventListener('click', () => run(async generation => {
+    $('encrypt-output').value = '';
+    const encrypted = await engine.encrypt(recipient, $('encrypt-input').value); stillCurrent(generation);
+    $('encrypt-output').value = encrypted; status('Message chiffré localement. Vous pouvez transmettre le résultat.');
+}));
+$('decrypt').addEventListener('click', () => run(async generation => {
+    $('decrypt-output').value = '';
+    const plaintext = await engine.decrypt(identity.privateKey, $('decrypt-input').value); stillCurrent(generation);
+    $('decrypt-output').value = plaintext; status('Message déchiffré localement.');
+}));
+$('message-file').addEventListener('change', event => {
+    const file = event.target.files[0]; event.target.value = ''; if (!file) return;
+    $('decrypt-input').value = ''; $('decrypt-output').value = '';
+    run(async generation => { const text = await fileText(file, 8 * 1024 * 1024); stillCurrent(generation); $('decrypt-input').value = text; status('Message importé localement.'); });
+});
+$('copy-encrypted').addEventListener('click', () => run(async () => {
+    if (!navigator.clipboard?.writeText) throw new Error('Copie indisponible : sélectionnez le texte chiffré et copiez-le manuellement.');
+    await navigator.clipboard.writeText($('encrypt-output').value); status('Message chiffré copié.');
+}));
+$('save-encrypted').addEventListener('click', () => download($('encrypt-output').value, 'message-chiffre.crypto'));
+$('clear').addEventListener('click', () => { if (saved || confirm('Votre clé privée n’a pas été sauvegardée. Effacer quand même ?')) clear(); });
+$('encrypt-input').addEventListener('input', () => { $('encrypt-output').value = ''; sync(); });
+$('decrypt-input').addEventListener('input', () => { $('decrypt-output').value = ''; });
+window.addEventListener('beforeunload', event => { if (identity && !saved) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('pagehide', clear);
+window.addEventListener('pageshow', event => { if (event.persisted) clear(); });
+// There is intentionally no fetch, XHR, WebSocket, beacon, cookie or browser storage.
+if (!globalThis.isSecureContext || !globalThis.crypto?.subtle) {
+    status('Web Crypto est indisponible. Ouvrez cette page en HTTPS ou depuis http://localhost:8000 avec un navigateur récent.', true);
+} else {
+    $('app').disabled = false; sync(); status('Prêt. Toutes les opérations s’effectuent sur votre appareil.');
 }
-
-/**
- * Configure les sous-onglets
- */
-function setupSubTabs() {
-    const subTabButtons = document.querySelectorAll('.sub-tab-button');
-    const subTabContents = document.querySelectorAll('.sub-tab-content');
-
-    subTabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const subTabId = button.dataset.subTab;
-
-            subTabButtons.forEach(btn => btn.classList.remove('active'));
-            subTabContents.forEach(content => content.classList.remove('active'));
-
-            button.classList.add('active');
-            document.getElementById(`${subTabId}-subtab`).classList.add('active');
-        });
-    });
-}
-
-// ============================================================================
-// GESTION DES LOGS
-// ============================================================================
-
-/**
- * Configure les boutons de gestion des logs
- */
-function setupLogToggles() {
-    // Chiffrement
-    const encryptToggleBtn = document.getElementById('encrypt-toggle-log-btn');
-    const encryptLogSection = document.getElementById('encrypt-log-section');
-    const encryptHideBtn = document.getElementById('encrypt-hide-log-btn');
-    
-    if (encryptToggleBtn && encryptLogSection) {
-        encryptToggleBtn.addEventListener('click', () => {
-            encryptLogSection.style.display = 'block';
-            encryptToggleBtn.style.display = 'none';
-        });
-        
-        if (encryptHideBtn) {
-            encryptHideBtn.addEventListener('click', () => {
-                encryptLogSection.style.display = 'none';
-                encryptToggleBtn.style.display = 'inline-block';
-            });
-        }
-    }
-    
-    // Déchiffrement
-    const decryptToggleBtn = document.getElementById('decrypt-toggle-log-btn');
-    const decryptLogSection = document.getElementById('decrypt-log-section');
-    const decryptHideBtn = document.getElementById('decrypt-hide-log-btn');
-    
-    if (decryptToggleBtn && decryptLogSection) {
-        decryptToggleBtn.addEventListener('click', () => {
-            decryptLogSection.style.display = 'block';
-            decryptToggleBtn.style.display = 'none';
-        });
-        
-        if (decryptHideBtn) {
-            decryptHideBtn.addEventListener('click', () => {
-                decryptLogSection.style.display = 'none';
-                decryptToggleBtn.style.display = 'inline-block';
-            });
-        }
-    }
-    
-    // Boutons de copie et effacement
-    document.getElementById('encrypt-copy-log-btn')?.addEventListener('click', () => {
-        copyLog('encrypt-log', 'Logs de chiffrement copiés !');
-    });
-    
-    document.getElementById('encrypt-clear-log-btn')?.addEventListener('click', () => {
-        clearLog('encrypt-log');
-    });
-    
-    document.getElementById('decrypt-copy-log-btn')?.addEventListener('click', () => {
-        copyLog('decrypt-log', 'Logs de déchiffrement copiés !');
-    });
-    
-    document.getElementById('decrypt-clear-log-btn')?.addEventListener('click', () => {
-        clearLog('decrypt-log');
-    });
-}
-
-// ============================================================================
-// CONFIGURATION DES ÉCOUTEURS
-// ============================================================================
-
-/**
- * Configure tous les écouteurs d'événements
- */
-function setupEventListeners() {
-    setupTabs();
-    setupSubTabs();
-    setupLogToggles();
-
-    // Désactiver les boutons de téléchargement au chargement
-    document.getElementById('download-rsa-public-key-btn').disabled = true;
-    document.getElementById('download-rsa-private-key-btn').disabled = true;
-
-    // Gestion des clés
-    document.getElementById('generate-rsa-keys-btn').addEventListener('click', generateRSAKeys);
-    document.getElementById('download-rsa-public-key-btn').addEventListener('click', () => downloadKey('myPublic', 'publique'));
-    document.getElementById('download-rsa-private-key-btn').addEventListener('click', () => downloadKey('myPrivate', 'privée'));
-    document.getElementById('load-my-public-key-btn').addEventListener('click', loadMyPublicKeyFromFile);
-    document.getElementById('load-my-private-key-btn').addEventListener('click', loadMyPrivateKeyFromFile);
-    document.getElementById('clear-keys-btn').addEventListener('click', clearKeys);
-    document.getElementById('load-interlocutor-key-btn').addEventListener('click', loadInterlocutorKeyFromFile);
-
-    // Chiffrement/Déchiffrement
-    document.getElementById('encrypt-btn').addEventListener('click', encryptMessage);
-    document.getElementById('decrypt-btn').addEventListener('click', decryptMessage);
-}
-
-// ============================================================================
-// INITIALISATION
-// ============================================================================
-
-// Initialiser au chargement de la page
-initializePyodide();
