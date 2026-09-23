@@ -95,24 +95,27 @@ export async function encrypt(key, message) {
 export async function decrypt(key, text) {
     try {
         if (text.length > MAX_ENVELOPE) fail();
-        if (!text.trim().startsWith('{')) return await decryptLegacy(key, text.trim());
-        const o = parse(text);
-        if (o.v !== 2 || o.alg !== alg || o.kid !== await fingerprint(await publicFromPrivate(key))) fail();
-        const iv = decode(o.iv), ek = decode(o.ek), ct = decode(o.ct);
-        if (iv.length !== 12 || ek.length !== key.algorithm.modulusLength / 8 || ct.length < 16 || ct.length > MAX_TEXT_BYTES + 16) fail();
-        const raw = await crypto.subtle.decrypt(rsa, key, ek);
-        if (raw.byteLength !== 32) fail();
-        const aes = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
-        return td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad(o.kid) }, aes, ct));
+        const trimmed = text.trim();
+        if (trimmed.startsWith('{')) {
+            const o = parse(trimmed);
+            if (o.v === 2) {
+                if (o.alg !== alg || o.kid !== await fingerprint(await publicFromPrivate(key))) fail();
+                const iv = decode(o.iv), ek = decode(o.ek), ct = decode(o.ct);
+                if (iv.length !== 12 || ek.length !== key.algorithm.modulusLength / 8 || ct.length < 16 || ct.length > MAX_TEXT_BYTES + 16) fail();
+                const raw = await crypto.subtle.decrypt(rsa, key, ek);
+                if (raw.byteLength !== 32) fail();
+                const aes = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+                return td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad(o.kid) }, aes, ct));
+            }
+            if (typeof o.encrypted_message === 'string' && typeof o.encrypted_fernet_key === 'string') {
+                return await decryptFernet(key, decode(o.encrypted_message), decode(o.encrypted_fernet_key));
+            }
+            fail();
+        }
+        return await decryptLegacyText(key, trimmed);
     } catch { throw new Error('Déchiffrement impossible : mauvaise clé, message altéré ou format non pris en charge.'); }
 }
-async function decryptLegacy(key, text) {
-    const data = decode(text);
-    if (data.length < 5) fail();
-    const len = new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0);
-    if (len < 1 || len >= data.length - 4) fail();
-    const token = decode(td.decode(data.subarray(4, 4 + len)));
-    const wrapped = decode(td.decode(data.subarray(4 + len)));
+async function decryptFernet(key, token, wrapped) {
     if (wrapped.length !== key.algorithm.modulusLength / 8 || token.length < 73 || token[0] !== 128 || (token.length - 57) % 16) fail();
     const fernet = decode(td.decode(await crypto.subtle.decrypt(rsa, key, wrapped)));
     if (fernet.length !== 32) fail();
@@ -122,6 +125,26 @@ async function decryptLegacy(key, text) {
     const clear = await crypto.subtle.decrypt({ name: 'AES-CBC', iv: token.subarray(9, 25) }, aes, token.subarray(25, -32));
     if (clear.byteLength > MAX_TEXT_BYTES) fail();
     return td.decode(clear);
+}
+async function decryptLegacy(key, text) {
+    const data = decode(text);
+    if (data.length < 5) fail();
+    const len = new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0);
+    if (len < 1 || len >= data.length - 4) fail();
+    const token = decode(td.decode(data.subarray(4, 4 + len)));
+    const wrapped = decode(td.decode(data.subarray(4 + len)));
+    return await decryptFernet(key, token, wrapped);
+}
+async function decryptLegacyText(key, text) {
+    const combined = td.decode(decode(text));
+    if (combined.includes('|')) {
+        const i = combined.indexOf('|');
+        return await decryptFernet(key, decode(combined.slice(0, i)), decode(combined.slice(i + 1)));
+    }
+    try { return await decryptLegacy(key, text); } catch { }
+    const inner = parse(td.decode(decode(text)));
+    if (typeof inner.encrypted_message !== 'string' || typeof inner.encrypted_fernet_key !== 'string') fail();
+    return await decryptFernet(key, decode(inner.encrypted_message), decode(inner.encrypted_fernet_key));
 }
 async function passwordKey(password, salt, usages) {
     const base = await crypto.subtle.importKey('raw', te.encode(password), 'PBKDF2', false, ['deriveKey']);
