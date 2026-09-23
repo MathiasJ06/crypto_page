@@ -37,6 +37,16 @@ function download(text, name) {
     const a = document.createElement('a'); a.href = url; a.download = name;
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+function keyFilenameSuffix() {
+    const value = $('key-filename-suffix').value.normalize('NFC').trim();
+    const safe = value
+        .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^[-._]+|[-._]+$/g, '')
+        .slice(0, 48)
+        .replace(/[-._]+$/g, '');
+    return safe ? `-${safe}` : '';
+}
 async function fileText(file, max) {
     if (!file || file.size === 0 || file.size > max) throw new Error('Fichier absent, vide ou trop volumineux.');
     return file.text();
@@ -82,14 +92,14 @@ $('generate').addEventListener('click', () => {
 });
 $('export-public').addEventListener('click', () => run(async generation => {
     const text = await engine.publicPEM(identity.publicKey); stillCurrent(generation);
-    download(text, 'ma-cle-publique.pem'); status('Clé publique prête à partager.');
+    download(text, `ma-cle-publique${keyFilenameSuffix()}.pem`); status('Clé publique prête à partager.');
 }));
 $('export-private').addEventListener('click', () => run(async generation => {
     let password = $('backup-password').value;
     try {
         if (password !== $('backup-confirm').value) throw new Error('Les deux phrases secrètes ne correspondent pas.');
         const text = await engine.protectPrivate(identity.privateKey, password); stillCurrent(generation);
-        download(text, 'ma-cle-privee-protegee.json'); saved = true;
+        download(text, `ma-cle-privee-protegee${keyFilenameSuffix()}.json`); saved = true;
         status('Téléchargement demandé. Vérifiez que la sauvegarde est bien présente avant de fermer l’onglet.');
     } finally { password = ''; $('backup-password').value = ''; $('backup-confirm').value = ''; }
 }));

@@ -42,6 +42,9 @@
           <article>
             <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer mes clés</h3>
             <p>Une paire RSA de 3072 bits, générée sur cet appareil.</p>
+            <label for="key-filename-suffix">Suffixe des fichiers de clés (facultatif)</label>
+            <input id="key-filename-suffix" type="text" maxlength="48" autocomplete="off" spellcheck="false" placeholder="ex. perso-2026" aria-describedby="key-filename-suffix-hint">
+            <p id="key-filename-suffix-hint" class="hint">Ajouté aux noms des exports de clé publique et de sauvegarde privée.</p>
             <button id="generate" class="primary" type="button">Générer mes clés</button>
           </article>
           <article>
