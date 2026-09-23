@@ -77,6 +77,21 @@ test('old Python public key imports and v2 cross-decrypt works', async () => {
     if (await engine.decrypt(key, fixture('legacy-public-v2-message.json')) !== 'Message v2 chiffre pour une cle ancienne.') throw new Error('cross decrypt failed');
 });
 
+test('old raw-JSON format (ca76dd9..ea20c28) decrypts', async () => {
+    const key = await engine.restorePrivate(fixture('old-format-private.pem'), '');
+    if (await engine.decrypt(key, fixture('old-json-message.json')) !== 'Message ancien format.') throw new Error('decrypt failed');
+});
+
+test('old base64(JSON) format (9a5bd2d) decrypts', async () => {
+    const key = await engine.restorePrivate(fixture('old-format-private.pem'), '');
+    if (await engine.decrypt(key, fixture('old-b64json-message.txt')) !== 'Message ancien format.') throw new Error('decrypt failed');
+});
+
+test('old separator format (abd52fc) decrypts', async () => {
+    const key = await engine.restorePrivate(fixture('old-format-private.pem'), '');
+    if (await engine.decrypt(key, fixture('old-separator-message.txt')) !== 'Message ancien format.') throw new Error('decrypt failed');
+});
+
 test('public PEM export round-trips', async () => {
     const pair = await engine.generateKeys();
     const pem = await engine.publicPEM(pair.publicKey);
