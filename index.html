@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Crypto · Chiffrement local</title>
+  <title>ChiffR · Chiffrement local</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
   <script type="module" src="script.js?v=20260923-sign1"></script>
@@ -13,10 +13,9 @@
 <body>
 <main>
   <header>
-    <div><span class="eyebrow">CRYPTO / LOCAL</span><h1>Vos mots restent chez vous.</h1><p>Chiffrez un message pour son destinataire, directement sur votre appareil.</p></div>
-    <span class="badge">Aucun envoi de données</span>
+    <div><span class="eyebrow">CRYPTO / LOCAL</span><h1>Tes mots restent chez toi.</h1><p>Chiffre directement un message pour ton destinataire.</p></div>
   </header>
-  <aside class="privacy">Les clés et les textes restent en mémoire dans cet onglet. Aucun compte, stockage automatique ou service externe. Seuls les fichiers que vous choisissez de télécharger sont enregistrés.</aside>
+  <aside class="privacy">Les clés et les textes restent en mémoire le temps de l'envoi ou de la réception. Aucun compte, stockage automatique ou service externe.</aside>
   <div id="status" role="status" aria-live="polite">Initialisation locale… Si ce message persiste, vérifiez que JavaScript est activé et ouvrez la page via HTTPS ou localhost.</div>
   <noscript>JavaScript doit être activé pour chiffrer localement les messages.</noscript>
   <fieldset id="app" disabled>
@@ -27,7 +26,7 @@
       <button type="button" data-panel="decrypt" aria-pressed="false">03 · Déchiffrer</button>
     </nav>
     <section id="keys-panel">
-      <div class="section-title"><div><h2>Votre identité de chiffrement</h2><p>Partagez votre identité publique. Gardez vos clés privées pour vous.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
+      <div class="section-title"><div><h2>Ton identité de chiffrement</h2><p>Partage ton identité publique. Garde ta clé privée pour toi.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
       <article class="identity-status">
         <span id="my-state">Aucune clé chargée</span>
         <output id="my-fingerprint" aria-label="Empreinte de ma clé de chiffrement"></output>
@@ -41,7 +40,7 @@
       <section id="key-create-panel" role="tabpanel" aria-labelledby="key-tab-create" data-key-panel="create">
         <div class="grid">
           <article>
-            <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer mes clés</h3>
+            <span class="eyebrow">NOUVELLE IDENTITÉ</span><h3>Créer ma clé publique</h3>
             <p>Une paire RSA de 3072 bits, générée sur cet appareil.</p>
             <label for="key-filename-suffix">Suffixe des fichiers de clés (facultatif)</label>
             <input id="key-filename-suffix" type="text" maxlength="48" autocomplete="off" spellcheck="false" placeholder="ex. perso-2026" aria-describedby="key-filename-suffix-hint">
