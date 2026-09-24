@@ -34,8 +34,8 @@
         <button id="export-public" type="button" disabled>Télécharger mon identité publique</button>
       </article>
       <nav class="key-tabs" role="tablist" aria-label="Gestion de mes clés">
-        <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="true" data-key-tab="create">Créer mes clés</button>
         <button id="key-tab-load" type="button" role="tab" aria-controls="key-load-panel" aria-selected="false" data-key-tab="load">Charger mes clés</button>
+        <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="true" data-key-tab="create">Créer mes clés</button>
       </nav>
       <section id="key-create-panel" role="tabpanel" aria-labelledby="key-tab-create" data-key-panel="create">
         <div class="grid">
@@ -48,16 +48,16 @@
             <button id="generate" class="primary" type="button">Générer mes clés</button>
           </article>
           <article>
-            <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger mes clés privées</h3>
+            <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger ma clé privée</h3>
             <p>Une phrase longue et unique protège les clés de chiffrement et de signature. Conservez le fichier et sa phrase pour déchiffrer et signer vos messages.</p>
             <label for="backup-password">Phrase secrète (12 caractères minimum)</label><input id="backup-password" type="password" autocomplete="off" spellcheck="false">
             <label for="backup-confirm">Confirmer la phrase secrète</label><input id="backup-confirm" type="password" autocomplete="off" spellcheck="false">
-            <button id="export-private" type="button" disabled>Télécharger la sauvegarde chiffrée</button>
+            <button id="export-private" type="button" disabled>Télécharger la clé privée</button>
           </article>
         </div>
       </section>
       <section id="key-load-panel" role="tabpanel" aria-labelledby="key-tab-load" data-key-panel="load" hidden>
-        <article class="restore"><h3>Charger une identité existante</h3><p>Choisissez votre sauvegarde privée, saisissez sa phrase secrète si elle est chiffrée, puis cliquez sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
+        <article class="restore"><h3>Charge ta clée privée existante</h3><p>Importe ta clé privée, saisis sa phrase secrète si elle est chiffrée, puis clique sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
           <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
           <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
           <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
@@ -67,13 +67,12 @@
     </section>
     <section id="encrypt-panel" hidden>
       <div class="section-title"><div><h2>Chiffrer pour un destinataire</h2><p>Seul le détenteur de sa clé privée pourra lire le message.</p></div></div>
-          <article><label for="recipient-file">Identité publique ou clé RSA du destinataire (.json, .pem ou .key)</label><input id="recipient-file" type="file" accept=".json,.pem,.key,.txt">
+          <article><label for="recipient-file">Clé publique du destinataire</label><input id="recipient-file" type="file" accept=".json,.pem,.key,.txt">
       <div class="key-info"><span id="recipient-state">Aucun destinataire chargé</span><output id="recipient-fingerprint" aria-label="Empreinte du destinataire"></output></div>
       <p class="hint">Comparez cette empreinte avec votre destinataire par un autre moyen de communication avant le premier échange.</p></article>
       <label for="encrypt-input">Votre message · 2 Mio maximum</label><textarea id="encrypt-input" rows="7" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Votre texte reste sur cet appareil."></textarea>
       <div class="actions"><button id="encrypt" class="primary" type="button" disabled>Chiffrer le message</button></div>
       <label for="encrypt-output">Message chiffré à transmettre</label><textarea id="encrypt-output" rows="5" readonly spellcheck="false"></textarea>
-      <p class="hint">Format réencodé pour masquer la structure JSON. Ce réencodage n’ajoute pas de protection cryptographique.</p>
       <div class="actions"><button id="copy-encrypted" type="button" disabled>Copier le message chiffré</button><button id="save-encrypted" type="button" disabled>Télécharger le message</button></div>
     </section>
     <section id="decrypt-panel" hidden>
