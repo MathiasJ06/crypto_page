@@ -37,6 +37,14 @@
         <button id="key-tab-load" type="button" role="tab" aria-controls="key-load-panel" aria-selected="true" data-key-tab="load">Charger mes clés</button>
         <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="false" data-key-tab="create">Créer mes clés</button>
       </nav>
+      <section id="key-load-panel" role="tabpanel" aria-labelledby="key-tab-load" data-key-panel="load" hidden>
+        <article class="restore"><h3>Charge ta clée privée existante</h3><p>Importe ta clé privée, saisis sa phrase secrète si elle est chiffrée, puis clique sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
+          <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
+          <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
+          <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
+          <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Formats acceptés : sauvegarde JSON de cette application ou clé PEM « BEGIN PRIVATE KEY ».</p>
+        </article>
+      </section>
       <section id="key-create-panel" role="tabpanel" aria-labelledby="key-tab-create" data-key-panel="create">
         <div class="grid">
           <article>
@@ -55,14 +63,6 @@
             <button id="export-private" type="button" disabled>Télécharger la clé privée</button>
           </article>
         </div>
-      </section>
-      <section id="key-load-panel" role="tabpanel" aria-labelledby="key-tab-load" data-key-panel="load" hidden>
-        <article class="restore"><h3>Charge ta clée privée existante</h3><p>Importe ta clé privée, saisis sa phrase secrète si elle est chiffrée, puis clique sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
-          <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
-          <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
-          <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
-          <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Formats acceptés : sauvegarde JSON de cette application ou clé PEM « BEGIN PRIVATE KEY ».</p>
-        </article>
       </section>
     </section>
     <section id="encrypt-panel" hidden>
