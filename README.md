@@ -26,9 +26,9 @@ Une fois la page chargée, elle fonctionne sans connexion réseau. L'interface t
 
 ## Utilisation
 
-1. **Mes clés** : générez votre paire RSA. Téléchargez la clé publique à partager et la sauvegarde privée protégée par une phrase secrète longue et unique (12 caractères minimum). Vérifiez que la sauvegarde est bien enregistrée. La phrase n'est pas récupérable par un service.
-2. **Chiffrer** : importez la clé publique de votre destinataire. Comparez l'empreinte complète avec lui par un autre canal. Saisissez le message, chiffrez, puis copiez ou téléchargez uniquement le résultat chiffré pour le transmettre.
-3. **Déchiffrer** : sélectionnez votre sauvegarde privée dans « Mes clés », saisissez sa phrase, puis cliquez sur « Importer ma clé privée ». Collez/importez ensuite le message reçu et déchiffrez. Un échec conserve le fichier sélectionné pour réessayer.
+1. **Mes clés** : générez votre identité, composée d'une paire RSA de chiffrement et d'une paire ECDSA de signature. Téléchargez l'identité publique à partager et la sauvegarde privée protégée par une phrase secrète longue et unique (12 caractères minimum). Vérifiez que la sauvegarde est bien enregistrée. La phrase n'est pas récupérable par un service.
+2. **Chiffrer** : importez l'identité publique de votre destinataire (ou son ancienne clé publique RSA). Comparez l'empreinte complète avec lui par un autre canal. Saisissez le message, chiffrez, puis copiez ou téléchargez le résultat chiffré pour le transmettre. L'application le signe avec votre clé privée de signature, qui ne quitte jamais l'appareil.
+3. **Déchiffrer** : sélectionnez votre sauvegarde privée dans « Mes clés », saisissez sa phrase, puis cliquez sur « Importer ma clé privée ». Collez/importez ensuite le message reçu et déchiffrez. La page vérifie la signature et affiche l'empreinte de la clé signataire. Pour vérifier qu'elle appartient bien à la personne attendue, chargez aussi son identité publique ou comparez l'empreinte par un canal sûr. Un échec conserve le fichier sélectionné pour réessayer.
 4. **Verrouiller et effacer** : retire les références aux clés de la session et vide les champs de l'interface. Les téléchargements et le presse-papiers ne sont pas effacés. Une fermeture/recharge supprime également l'état de l'application. Une sortie avec une clé nouvellement générée sans téléchargement de sauvegarde demande confirmation si le navigateur le permet.
 
 Le destinataire n'a pas à transmettre sa clé privée. L'application n'envoie pas elle-même les messages. Les espaces et les retours à la ligne sont conservés exactement. La taille maximale d'un texte clair est 2 Mio en UTF-8.
@@ -40,35 +40,41 @@ Le destinataire n'a pas à transmettre sa clé privée. L'application n'envoie p
 - Sur un hébergement distant, le chargement initial communique les métadonnées habituelles (adresse IP, requête de page) à l'hébergeur. Aucun texte ou clé n'est mis dans l'URL ni envoyé. Le mode localhost avec connexion coupée évite ce contact avec un hébergeur distant.
 - Un hébergeur compromis pourrait remplacer le code ou sa CSP. Le mode local avec une copie vérifiée offre un contrôle supplémentaire. Le navigateur, les extensions, le système et les éventuels outils de saisie doivent être dignes de confiance. Le code ne peut pas garantir un effacement physique de toute copie en mémoire gérée par JavaScript/navigateur.
 - La copie vers le presse-papiers concerne seulement les messages chiffrés. L'enregistrement des fichiers est volontaire ; le dossier de téléchargement peut être synchronisé par votre système. La sauvegarde privée exportée reste chiffrée.
-- Le chiffrement protège le message et détecte ses modifications, mais **n'authentifie pas l'expéditeur**. Toute personne ayant la clé publique peut créer un message pour son détenteur. Pas de signature d'expéditeur, de protection contre le rejeu ni de confidentialité persistante en cas de compromission ultérieure de la clé RSA.
-- L'empreinte de la clé destinataire est visible dans les messages v2 ; elle sert d'identifiant de clé et peut relier plusieurs échanges. Le format ne promet pas l'anonymat ni la dissimulation des métadonnées.
+- Chaque message comporte une signature ECDSA vérifiable avec la clé publique de signature intégrée. Cela prouve que le message a été signé par le détenteur de la clé privée correspondante et qu'il n'a pas été modifié. La clé publique incluse ne prouve pas à elle seule le nom ou l'identité civile de l'expéditeur : comparez son empreinte à une identité reçue par un canal sûr. Il n'y a ni protection contre le rejeu ni confidentialité persistante en cas de compromission ultérieure de la clé RSA.
+- L'enveloppe des messages est réencodée en Base64 URL-safe pour masquer sa structure JSON à première vue. Ce réencodage n'ajoute aucune protection cryptographique : les métadonnées restent accessibles à qui décode l'enveloppe, et la taille du message reste visible.
 - Il s'agit d'un outil de chiffrement local, pas d'une messagerie auditée ou d'un protocole complet de communication de groupe.
 
 ## Formats et compatibilité
 
-### Messages v2
+### Messages v3 signés et réencodés
 
-Enveloppe JSON `{v, alg, kid, iv, ek, ct}` :
+L'enveloppe JSON `{v, alg, kid, iv, ek, ct, senderKid, senderKey, sig}` est encodée en UTF-8 puis en Base64 URL-safe sans padding. Aucun préfixe n'est ajouté. Le déchiffrement accepte uniquement ce format réencodé signé.
 
-- `v: 2`, `alg: "RSA-OAEP-256+A256GCM"` ;
+- `v: 3`, `alg: "RSA-OAEP-256+A256GCM+ECDSA-P256-SHA256"` ;
 - RSA-OAEP avec SHA-256 encapsule une clé AES aléatoire de 256 bits par message ;
 - AES-GCM utilise un nonce aléatoire de 96 bits et un tag de 128 bits ;
-- `kid` est l'empreinte SHA-256 du SPKI DER, en hexadécimal minuscule groupé par quatre caractères ;
-- les données authentifiées sont l'encodage UTF-8 de `JSON.stringify({v:2, alg:"RSA-OAEP-256+A256GCM", kid})` dans cet ordre ;
-- `iv`, `ek` et `ct` sont encodés en Base64 URL-safe sans padding. `ct` inclut le tag GCM ;
+- `kid` identifie la clé publique RSA destinataire ; `senderKid` identifie la clé publique ECDSA signataire. Les deux sont les empreintes SHA-256 du SPKI DER, en hexadécimal minuscule groupé par quatre caractères ;
+- `senderKey` contient la clé publique ECDSA SPKI et `sig` la signature ECDSA P-256 avec SHA-256 ; la signature couvre `v`, `alg`, `kid`, `iv`, `ek`, `ct`, `senderKid` et `senderKey` dans cet ordre ;
+- les données authentifiées par AES-GCM sont l'encodage UTF-8 de `JSON.stringify({v:3, alg:"RSA-OAEP-256+A256GCM+ECDSA-P256-SHA256", kid})` dans cet ordre ;
+- `iv`, `ek`, `ct`, `senderKey` et `sig` sont encodés en Base64 URL-safe sans padding. `ct` inclut le tag GCM ;
 - la génération RSA utilise 3072 bits ; les imports acceptent RSA de 2048 à 8192 bits.
 
-### Sauvegardes privées v1
+### Identité publique et sauvegarde privée v2
+
+L'identité publique JSON contient la clé publique RSA PEM et la clé publique ECDSA SPKI encodée en Base64 URL-safe. Les clés privées ne sont pas incluses.
+
+La sauvegarde privée JSON v2 chiffre ensemble les deux clés privées PKCS#8 avec PBKDF2-HMAC-SHA256 (600 000 itérations, sel aléatoire de 16 octets) et AES-256-GCM (nonce aléatoire de 12 octets). Les données authentifiées sont la chaîne UTF-8 `crypto-page/private-identity/v2/PBKDF2-SHA256/600000/A256GCM`.
+
+### Anciennes sauvegardes privées v1
 
 Format JSON propre à cette application, et non PEM PKCS#8 chiffré standard : PBKDF2-HMAC-SHA256 (600 000 itérations, sel aléatoire de 16 octets) dérive une clé AES-256-GCM. Nonce aléatoire de 12 octets. Le contenu protégé est le PKCS#8 DER. Les données authentifiées sont la chaîne UTF-8 `crypto-page/private-key/v1/PBKDF2-SHA256/600000/A256GCM`. Les paramètres importés sont strictement bornés et validés.
 
-Les clés privées sont exportables en mémoire afin de permettre leur sauvegarde ; aucun export privé non chiffré n'est proposé dans l'interface.
+Les sauvegardes privées v1 sont toujours importables ; elles ne contiennent qu'une clé RSA. À leur chargement, une nouvelle paire ECDSA est créée : téléchargez une nouvelle sauvegarde v2 pour la conserver. Les clés privées sont exportables en mémoire afin de permettre leur sauvegarde ; aucun export privé non chiffré n'est proposé dans l'interface.
 
-### Ancienne version
+### Import des clés antérieures
 
-- Import des anciennes clés publiques SPKI PEM et privées PKCS#8 PEM **non chiffrées** (`.pem`, `.key` ou `.txt`). La clé publique est dérivée automatiquement de la clé privée importée.
-- Lecture des anciennes enveloppes RSA-OAEP/SHA-256 + Fernet : HMAC-SHA256 vérifié avant déchiffrement AES-128-CBC. Pas d'expiration temporelle ajoutée à l'ancien format.
-- Les nouveaux messages v2 ne peuvent pas être lus par l'ancienne interface. Tous les correspondants doivent utiliser cette version pour recevoir de nouveaux messages.
+- Import des identités publiques JSON, des clés publiques SPKI PEM et des clés privées PKCS#8 PEM **non chiffrées** (`.pem`, `.key` ou `.txt`). La clé publique est dérivée automatiquement de la clé privée importée. Un ancien PEM RSA reçoit une nouvelle clé de signature ; sauvegardez l'identité mise à niveau avant de fermer l'onglet.
+- Les anciens messages ne sont pas pris en charge. Tous les correspondants doivent utiliser cette version pour lire les nouveaux messages.
 - Les fichiers Python du dossier `crypto/` sont conservés comme référence historique. Ils ne sont jamais chargés ni exécutés par l'application.
 
 ## Vérifications
@@ -79,7 +85,7 @@ Node.js 22 ou supérieur, sans installation de dépendances pour les tests du mo
 npm test
 ```
 
-Le fichier `tests/legacy-fixture.json` contient une **clé de test publique**, générée uniquement pour tester la compatibilité avec l'ancien Python. Ne jamais l'utiliser pour de vrais échanges.
+Le fichier `tests/keys-fixture.json` contient une **clé de test**, uniquement destinée à la suite de tests. Ne jamais l'utiliser pour de vrais échanges.
 
 Pour les tests de navigateur, installer Playwright dans l'environnement de développement, installer Chromium, démarrer le serveur local, puis lancer :
 
@@ -89,4 +95,4 @@ npx playwright install chromium
 node tests/browser.cjs
 ```
 
-Le parcours navigateur vérifie la génération, les imports/exports, le chiffrement v2 et la lecture de Fernet **réseau coupé**, l'absence de nouvelles requêtes pendant ces opérations, l'absence de stockage persistant et le blocage des connexions par CSP. Il capture aussi les vues ordinateur et mobile dans `test-results/`.
+Le parcours navigateur vérifie la génération, les imports/exports et le chiffrement/déchiffrement v3 signé et réencodé **réseau coupé**, la vérification de l'identité de signature, l'absence de nouvelles requêtes pendant ces opérations, l'absence de stockage persistant et le blocage des connexions par CSP. Il capture aussi les vues ordinateur et mobile dans `test-results/`.

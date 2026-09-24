@@ -1,20 +1,16 @@
-# Vérification de la migration Web Crypto
+# Vérification de la signature d’expéditeur
 
-Date : 23 septembre 2026. Version initiale analysée : `c11622378bee664df1fce9f4ac9562f36ae6be82`.
+Date : 23 septembre 2026.
 
-- 15 tests Node.js réussis : génération RSA, import/export PEM, messages Unicode et espaces exacts, taille maximale, aléatoire par message, mauvais destinataire, altération du contenu et des métadonnées, formats invalides, compatibilité Fernet issue du Python historique, sauvegardes protégées, mauvaise phrase secrète, validation des types/tailles de clés et politique CSP.
-- Parcours complet dans Chromium 153, via Playwright : création de clés 3072 bits, téléchargement public, sauvegarde privée chiffrée, chiffrement/déchiffrement v2, verrouillage, restauration de sauvegarde, import d'une clé historique et déchiffrement Fernet.
-- Quatre requêtes au chargement : HTML, CSS, deux modules JavaScript locaux. **Aucune requête supplémentaire pendant les opérations sensibles**, exécutées avec le réseau du navigateur coupé.
-- Vérification distincte d'un `fetch` de test, après remise du réseau : bloqué par la politique CSP, même vers le site d'origine.
-- Aucun cookie, entrée localStorage/sessionStorage ou base IndexedDB après le parcours. Aucune erreur JavaScript de page.
-- Captures ordinateur (1360 px) et mobile (390 px) inspectées. Aucun débordement horizontal sur mobile.
+- `npm test` : 18 tests réussis. Vérification du chiffrement/déchiffrement signé v3, de l’identité publique, des altérations de signature/enveloppe, du contrôle d’une clé d’expéditeur attendue et des sauvegardes privées v1/v2.
+- `node --check` sur `script.js`, `crypto-engine.js` et `tests/browser.cjs` : réussi.
+- `git diff --check` : réussi.
+- Le parcours navigateur Playwright n'a pas pu être exécuté : Playwright est disponible dans l'environnement, mais aucun binaire Chromium n'est installé. Le test couvre le flux complet, incluant la vérification de l'expéditeur quand Chromium est disponible.
 
-Ces vérifications couvrent la version livrée et le navigateur testé ; elles ne constituent pas un audit cryptographique indépendant et ne garantissent pas l'intégrité d'un futur hébergement ou du système de l'utilisateur.
+Aucune publication ni modification du dépôt GitHub distant n'a été effectuée. Ces tests ne constituent pas un audit cryptographique indépendant et ne garantissent pas l'intégrité d'un futur hébergement ou du système de l'utilisateur.
 
-Aucune publication ni modification du dépôt GitHub distant n'a été effectuée.
+## Détails du changement
 
-## Correctif d’import des clés privées
+Les messages v3 sont signés avec la clé privée ECDSA P-256 de l'expéditeur. Ils embarquent la signature et la clé publique correspondante ; la clé privée ne quitte pas l'appareil. Le destinataire peut vérifier la signature et, en important l'identité publique JSON attendue, contrôler que la signature correspond à l'empreinte reçue par un canal indépendant.
 
-Défaut reproduit sur les fichiers de `origin/main` au commit `caddfbc` : sélectionner la sauvegarde JSON avant de saisir la phrase déclenchait immédiatement un échec et effaçait la sélection du fichier.
-
-Correction : sélection distincte du déclenchement d’import ; bouton explicite, validation avec Entrée, conservation du fichier après un échec, retour d’erreur dans le panneau d’import et état de la clé dans le panneau de déchiffrement. Les formats PEM non pris en charge sont maintenant identifiés clairement. Le moteur cryptographique reste inchangé.
+Les sauvegardes v2 protègent ensemble les clés privées RSA et ECDSA. Les sauvegardes antérieures v1 (RSA seulement) et les PEM privés PKCS#8 restent importables ; le chargement d'une ancienne clé crée une nouvelle clé de signature qu'il faut sauvegarder.

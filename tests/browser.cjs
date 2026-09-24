@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES ? path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES, 'playwright') : 'playwright');
-const fixture = require('./legacy-fixture.json');
+const fixture = require('./keys-fixture.json');
 (async () => {
  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_EXECUTABLE || undefined, args: ['--disable-dev-shm-usage'] });
  try {
@@ -37,18 +37,21 @@ const fixture = require('./legacy-fixture.json');
   await page.waitForFunction(() => !document.getElementById('app').disabled);
   assert.equal(await page.locator('#backup-password').inputValue(), '');
   await page.locator('[data-panel=encrypt]').click();
-  await page.locator('#recipient-file').setInputFiles({ name: 'recipient.pem', mimeType: 'text/plain', buffer: Buffer.from(publicText) });
+  await page.locator('#recipient-file').setInputFiles({ name: 'recipient.json', mimeType: 'application/json', buffer: Buffer.from(publicText) });
   await page.waitForFunction(() => !document.getElementById('encrypt').disabled);
   const message = '  Message privé éè 🔐\n  Espaces préservés.\n';
   await page.locator('#encrypt-input').fill(message);
   await page.locator('#encrypt').click();
-  await page.waitForFunction(() => document.getElementById('encrypt-output').value.startsWith('{'));
+  await page.waitForFunction(() => document.getElementById('encrypt-output').value.length > 0);
   const encrypted = await page.locator('#encrypt-output').inputValue();
+  assert.match(encrypted, /^[A-Za-z0-9_-]+$/);
   await page.locator('[data-panel=decrypt]').click();
+  await page.locator('#sender-identity-file').setInputFiles({ name: 'sender.json', mimeType: 'application/json', buffer: Buffer.from(publicText) });
   await page.locator('#decrypt-input').fill(encrypted);
   await page.locator('#decrypt').click();
   await page.waitForFunction(() => document.getElementById('decrypt-output').value.length > 0);
   assert.equal(await page.locator('#decrypt-output').inputValue(), message);
+  await page.waitForFunction(() => document.getElementById('sender-verification').textContent.includes('identité chargée reconnue'));
   await page.locator('[data-panel=keys]').click();
   await page.locator('#clear').click();
   assert.equal(await page.locator('#decrypt-output').inputValue(), '');
@@ -77,16 +80,11 @@ const fixture = require('./legacy-fixture.json');
   await page.waitForFunction(() => !document.getElementById('app').disabled);
   assert.ok((await page.locator('#restore-feedback').textContent()).includes('clé publique'));
   assert.equal(await page.locator('#my-fingerprint').textContent(), fp);
-  // Import independently generated Python key and decrypt old Fernet envelope.
+  // Independently generated PKCS#8 key remains importable.
   await page.locator('#private-file').setInputFiles({ name: 'old.key', mimeType: 'text/plain', buffer: Buffer.from(fixture.private) });
   await page.locator('#import-private').click();
   await page.waitForFunction(() => document.getElementById('my-state').textContent.includes('2048'));
   await page.locator('[data-panel=decrypt]').click();
-  await page.locator('#message-file').setInputFiles({ name: 'old.crypto', mimeType: 'text/plain', buffer: Buffer.from(fixture.token) });
-  await page.waitForFunction(() => !document.getElementById('app').disabled);
-  await page.locator('#decrypt').click();
-  await page.waitForFunction(() => document.getElementById('decrypt-output').value.length > 0);
-  assert.equal(await page.locator('#decrypt-output').inputValue(), fixture.message);
   await page.locator('#decrypt-input').fill('invalid');
   await page.locator('#decrypt').click();
   await page.waitForFunction(() => document.getElementById('status').classList.contains('error'));
@@ -108,6 +106,6 @@ const fixture = require('./legacy-fixture.json');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: path.join(output, 'mobile.png'), fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No mobile overflow');
-  console.log(JSON.stringify({ result: 'PASS', startupRequests: initialRequests, requestsDuringSensitiveOperations: 0, offline: 'generation, public export, protected backup, import, v2 encrypt/decrypt, legacy decrypt', csp: 'fetch blocked', storage, pageErrors: errors, mobile: 'no overflow' }, null, 2));
+  console.log(JSON.stringify({ result: 'PASS', startupRequests: initialRequests, requestsDuringSensitiveOperations: 0, offline: 'generation, public export, protected backup, import, opaque signed v3 encrypt/decrypt and sender verification', csp: 'fetch blocked', storage, pageErrors: errors, mobile: 'no overflow' }, null, 2));
  } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

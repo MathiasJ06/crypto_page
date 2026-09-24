@@ -8,7 +8,7 @@
   <title>Crypto · Chiffrement local</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="script.js?v=20260923-opaque1"></script>
+  <script type="module" src="script.js?v=20260923-sign1"></script>
 </head>
 <body>
 <main>
@@ -27,11 +27,12 @@
       <button type="button" data-panel="decrypt" aria-pressed="false">03 · Déchiffrer</button>
     </nav>
     <section id="keys-panel">
-      <div class="section-title"><div><h2>Votre identité de chiffrement</h2><p>Partagez votre clé publique. Gardez votre clé privée pour vous.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
+      <div class="section-title"><div><h2>Votre identité de chiffrement</h2><p>Partagez votre identité publique. Gardez vos clés privées pour vous.</p></div><button id="clear" class="danger" type="button">Verrouiller et effacer</button></div>
       <article class="identity-status">
         <span id="my-state">Aucune clé chargée</span>
-        <output id="my-fingerprint" aria-label="Empreinte de ma clé publique"></output>
-        <button id="export-public" type="button" disabled>Télécharger ma clé publique</button>
+        <output id="my-fingerprint" aria-label="Empreinte de ma clé de chiffrement"></output>
+        <output id="my-signing-fingerprint" aria-label="Empreinte de ma clé de signature"></output>
+        <button id="export-public" type="button" disabled>Télécharger mon identité publique</button>
       </article>
       <nav class="key-tabs" role="tablist" aria-label="Gestion de mes clés">
         <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="true" data-key-tab="create">Créer mes clés</button>
@@ -48,8 +49,8 @@
             <button id="generate" class="primary" type="button">Générer mes clés</button>
           </article>
           <article>
-            <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger ma clé privée</h3>
-            <p>Une phrase longue et unique protège le fichier. Conservez le fichier et sa phrase : sans eux, les messages ne pourront plus être déchiffrés.</p>
+            <span class="eyebrow">SAUVEGARDE PRIVÉE</span><h3>Protéger mes clés privées</h3>
+            <p>Une phrase longue et unique protège les clés de chiffrement et de signature. Conservez le fichier et sa phrase pour déchiffrer et signer vos messages.</p>
             <label for="backup-password">Phrase secrète (12 caractères minimum)</label><input id="backup-password" type="password" autocomplete="off" spellcheck="false">
             <label for="backup-confirm">Confirmer la phrase secrète</label><input id="backup-confirm" type="password" autocomplete="off" spellcheck="false">
             <button id="export-private" type="button" disabled>Télécharger la sauvegarde chiffrée</button>
@@ -67,7 +68,7 @@
     </section>
     <section id="encrypt-panel" hidden>
       <div class="section-title"><div><h2>Chiffrer pour un destinataire</h2><p>Seul le détenteur de sa clé privée pourra lire le message.</p></div></div>
-      <article><label for="recipient-file">Clé publique du destinataire (.pem ou .key)</label><input id="recipient-file" type="file" accept=".pem,.key,.txt">
+          <article><label for="recipient-file">Identité publique ou clé RSA du destinataire (.json, .pem ou .key)</label><input id="recipient-file" type="file" accept=".json,.pem,.key,.txt">
       <div class="key-info"><span id="recipient-state">Aucun destinataire chargé</span><output id="recipient-fingerprint" aria-label="Empreinte du destinataire"></output></div>
       <p class="hint">Comparez cette empreinte avec votre destinataire par un autre moyen de communication avant le premier échange.</p></article>
       <label for="encrypt-input">Votre message · 2 Mio maximum</label><textarea id="encrypt-input" rows="7" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Votre texte reste sur cet appareil."></textarea>
@@ -79,10 +80,13 @@
     <section id="decrypt-panel" hidden>
       <div class="section-title"><div><h2>Lire un message reçu</h2><p>Chargez votre clé privée dans « Mes clés », puis collez ou importez le message.</p><p id="decrypt-key-state">Aucune clé privée chargée.</p></div></div>
       <label for="message-file">Importer un message chiffré</label><input id="message-file" type="file" accept=".json,.txt,.crypto">
+      <label for="sender-identity-file">Identité publique attendue de l’expéditeur (facultatif, fichier .json)</label><input id="sender-identity-file" type="file" accept=".json">
+      <p id="sender-identity-state" class="hint" role="status" aria-live="polite">Aucune identité d’expéditeur chargée.</p>
+      <p class="hint">Chaque message contient une signature et l’empreinte de sa clé signataire. Pour rattacher cette clé à une personne, comparez-la à son identité publique obtenue par un canal sûr.</p>
       <label for="decrypt-input">Message chiffré</label><textarea id="decrypt-input" rows="6" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
       <div class="actions"><button id="decrypt" class="primary" type="button" disabled>Déchiffrer le message</button></div>
       <label for="decrypt-output">Message déchiffré · visible uniquement ici</label><textarea id="decrypt-output" rows="8" readonly spellcheck="false"></textarea>
-      <p class="hint">Cette version lit uniquement les messages au format réencodé. Le chiffrement ne vérifie pas l’identité de l’expéditeur.</p>
+      <p id="sender-verification" class="hint" role="status" aria-live="polite">Signature de l’expéditeur non vérifiée.</p>
     </section>
   </fieldset>
   <footer>Traitement local · Web Crypto · Aucun script tiers<br>Fermez ou verrouillez cet onglet pour libérer les clés et effacer les textes de l’interface. Les fichiers téléchargés restent sur votre appareil.</footer>

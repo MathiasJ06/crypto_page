@@ -1,6 +1,6 @@
-import * as engine from './crypto-engine.js?v=20260923-opaque1';
+import * as engine from './crypto-engine.js?v=20260923-sign1';
 const $ = id => document.getElementById(id);
-let identity = null, recipient = null, saved = true, busy = false, epoch = 0;
+let identity = null, recipient = null, trustedSenderSigningKey = null, saved = true, busy = false, epoch = 0;
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function sync() {
     $('import-private').disabled = !$('private-file').files.length;
@@ -25,12 +25,16 @@ async function run(action) {
 function stillCurrent(generation) { if (epoch !== generation) throw new Error('Opération annulée.'); }
 function replaceAllowed() { return !identity || saved || confirm('La clé actuelle n’a pas été sauvegardée. La remplacer rendra ses messages illisibles si vous n’en avez aucune copie. Continuer ?'); }
 async function setIdentity(pair, generation, isSaved) {
-    const fp = await engine.fingerprint(pair.publicKey);
+    const [fp, signingFp] = await Promise.all([
+        engine.fingerprint(pair.publicKey), engine.fingerprint(pair.signingPublicKey),
+    ]);
     stillCurrent(generation);
     identity = pair; saved = isSaved;
     $('my-state').textContent = `Clés chargées · RSA ${pair.publicKey.algorithm.modulusLength} bits`;
     $('my-fingerprint').textContent = fp;
+    $('my-signing-fingerprint').textContent = `Signature · ${signingFp}`;
     $('decrypt-output').value = '';
+    $('sender-verification').textContent = 'Signature de l’expéditeur non vérifiée.';
 }
 function download(text, name) {
     const url = URL.createObjectURL(new Blob([text], { type: 'application/octet-stream' }));
@@ -52,11 +56,13 @@ async function fileText(file, max) {
     return file.text();
 }
 function clear() {
-    epoch++; busy = false; identity = null; recipient = null; saved = true;
+    epoch++; busy = false; identity = null; recipient = null; trustedSenderSigningKey = null; saved = true;
     for (const el of document.querySelectorAll('textarea, input')) el.value = '';
     $('my-state').textContent = 'Aucune clé chargée'; $('recipient-state').textContent = 'Aucun destinataire chargé';
-    $('my-fingerprint').textContent = ''; $('recipient-fingerprint').textContent = '';
+    $('my-fingerprint').textContent = ''; $('my-signing-fingerprint').textContent = ''; $('recipient-fingerprint').textContent = '';
     $('restore-feedback').textContent = 'Aucun fichier sélectionné.';
+    $('sender-identity-state').textContent = 'Aucune identité d’expéditeur chargée.';
+    $('sender-verification').textContent = 'Signature de l’expéditeur non vérifiée.';
     $('app').disabled = !globalThis.crypto?.subtle; sync();
     status('Onglet verrouillé : clés libérées et textes effacés de l’interface.');
 }
@@ -91,14 +97,14 @@ $('generate').addEventListener('click', () => {
     run(async generation => { const pair = await engine.generateKeys(); await setIdentity(pair, generation, false); status('Clés créées. Téléchargez votre sauvegarde privée chiffrée avant de fermer cet onglet.'); });
 });
 $('export-public').addEventListener('click', () => run(async generation => {
-    const text = await engine.publicPEM(identity.publicKey); stillCurrent(generation);
-    download(text, `ma-cle-publique${keyFilenameSuffix()}.pem`); status('Clé publique prête à partager.');
+    const text = await engine.publicIdentity(identity); stillCurrent(generation);
+    download(text, `mon-identite-publique${keyFilenameSuffix()}.json`); status('Identité publique prête à partager.');
 }));
 $('export-private').addEventListener('click', () => run(async generation => {
     let password = $('backup-password').value;
     try {
         if (password !== $('backup-confirm').value) throw new Error('Les deux phrases secrètes ne correspondent pas.');
-        const text = await engine.protectPrivate(identity.privateKey, password); stillCurrent(generation);
+        const text = await engine.protectPrivate(identity, password); stillCurrent(generation);
         download(text, `ma-cle-privee-protegee${keyFilenameSuffix()}.json`); saved = true;
         status('Téléchargement demandé. Vérifiez que la sauvegarde est bien présente avant de fermer l’onglet.');
     } finally { password = ''; $('backup-password').value = ''; $('backup-confirm').value = ''; }
@@ -130,12 +136,19 @@ $('import-private').addEventListener('click', () => {
             } else if (!trimmed.startsWith('-----BEGIN PRIVATE KEY-----')) {
                 throw new Error('Format non reconnu : choisissez une sauvegarde privée JSON ou une clé PEM « BEGIN PRIVATE KEY ».');
             }
-            const key = await engine.restorePrivate(text, password);
-            const pub = await engine.publicFromPrivate(key);
-            await setIdentity({ privateKey: key, publicKey: pub }, generation, true);
+            const restored = await engine.restorePrivate(text, password);
+            const signing = restored.signingPrivateKey
+                ? { signingPrivateKey: restored.signingPrivateKey, signingPublicKey: await engine.publicSigningFromPrivate(restored.signingPrivateKey) }
+                : await engine.generateSigningKeys();
+            const pair = { ...restored, ...signing, publicKey: await engine.publicFromPrivate(restored.privateKey) };
+            await setIdentity(pair, generation, Boolean(restored.signingPrivateKey));
             $('private-file').value = '';
-            $('restore-feedback').textContent = 'Clé privée importée. Ouvrez « Déchiffrer » pour lire votre message.';
-            status('Clé privée chargée localement. La clé publique correspondante est disponible.');
+            $('restore-feedback').textContent = restored.signingPrivateKey
+                ? 'Identité importée. Ouvrez « Déchiffrer » pour lire un message signé.'
+                : 'Clé RSA importée et nouvelle clé de signature créée. Téléchargez une nouvelle sauvegarde privée avant de fermer.';
+            status(restored.signingPrivateKey
+                ? 'Identité chargée localement, avec sa clé de signature.'
+                : 'Clé RSA chargée. Une nouvelle clé de signature locale a été créée.');
         } catch (error) {
             if (generation === epoch) {
                 $('restore-feedback').textContent = `${error.message || 'Clé privée invalide.'} Le fichier reste sélectionné pour réessayer.${identity ? ' La clé précédente reste chargée.' : ''}`;
@@ -151,7 +164,8 @@ $('recipient-file').addEventListener('change', event => {
     const file = event.target.files[0]; event.target.value = ''; if (!file) return;
     recipient = null; $('recipient-state').textContent = 'Aucun destinataire chargé'; $('recipient-fingerprint').textContent = ''; $('encrypt-output').value = '';
     run(async generation => {
-        const key = await engine.importPublic(await fileText(file, 65536));
+        const bundle = await engine.importPublicIdentity(await fileText(file, 65536));
+        const key = bundle.publicKey;
         const fp = await engine.fingerprint(key); stillCurrent(generation);
         recipient = key; $('recipient-state').textContent = `Destinataire chargé · RSA ${key.algorithm.modulusLength} bits`;
         $('recipient-fingerprint').textContent = fp;
@@ -160,13 +174,32 @@ $('recipient-file').addEventListener('change', event => {
 });
 $('encrypt').addEventListener('click', () => run(async generation => {
     $('encrypt-output').value = '';
-    const encrypted = await engine.encrypt(recipient, $('encrypt-input').value); stillCurrent(generation);
+    const encrypted = await engine.encrypt(recipient, $('encrypt-input').value, identity); stillCurrent(generation);
     $('encrypt-output').value = encrypted; status('Message chiffré localement. Vous pouvez transmettre le résultat.');
 }));
+$('sender-identity-file').addEventListener('change', event => {
+    const file = event.target.files[0]; trustedSenderSigningKey = null;
+    $('sender-identity-state').textContent = 'Aucune identité d’expéditeur chargée.';
+    $('sender-verification').textContent = 'Signature de l’expéditeur non vérifiée.';
+    if (!file) return;
+    run(async generation => {
+        const bundle = await engine.importPublicIdentity(await fileText(file, 65536));
+        if (!bundle.signingPublicKey) throw new Error('Ce fichier ne contient pas de clé de signature. Choisissez une identité publique JSON.');
+        const fingerprint = await engine.fingerprint(bundle.signingPublicKey); stillCurrent(generation);
+        trustedSenderSigningKey = bundle.signingPublicKey;
+        $('sender-identity-state').textContent = `Identité de signature chargée · ${fingerprint}`;
+        $('sender-verification').textContent = 'La signature sera comparée à cette identité.';
+    });
+});
 $('decrypt').addEventListener('click', () => run(async generation => {
     $('decrypt-output').value = '';
-    const plaintext = await engine.decrypt(identity.privateKey, $('decrypt-input').value); stillCurrent(generation);
-    $('decrypt-output').value = plaintext; status('Message déchiffré localement.');
+    $('sender-verification').textContent = 'Vérification de la signature…';
+    const result = await engine.decrypt(identity.privateKey, $('decrypt-input').value, trustedSenderSigningKey); stillCurrent(generation);
+    $('decrypt-output').value = result.message;
+    $('sender-verification').textContent = result.senderTrusted
+        ? `Signature valide · identité chargée reconnue · ${result.senderFingerprint}`
+        : `Signature valide · clé ${result.senderFingerprint} · identité humaine à confirmer`;
+    status('Message déchiffré et signature vérifiée localement.');
 }));
 $('message-file').addEventListener('change', event => {
     const file = event.target.files[0]; event.target.value = ''; if (!file) return;
@@ -181,7 +214,7 @@ $('copy-encrypted').addEventListener('click', () => run(async () => {
 $('save-encrypted').addEventListener('click', () => download($('encrypt-output').value, 'message-chiffre.crypto'));
 $('clear').addEventListener('click', () => { if (saved || confirm('Votre clé privée n’a pas été sauvegardée. Effacer quand même ?')) clear(); });
 $('encrypt-input').addEventListener('input', () => { $('encrypt-output').value = ''; sync(); });
-$('decrypt-input').addEventListener('input', () => { $('decrypt-output').value = ''; sync(); });
+$('decrypt-input').addEventListener('input', () => { $('decrypt-output').value = ''; $('sender-verification').textContent = 'Signature de l’expéditeur non vérifiée.'; sync(); });
 window.addEventListener('beforeunload', event => { if (identity && !saved) { event.preventDefault(); event.returnValue = ''; } });
 window.addEventListener('pagehide', clear);
 window.addEventListener('pageshow', event => { if (event.persisted) clear(); });
