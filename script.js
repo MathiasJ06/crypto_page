@@ -1,9 +1,9 @@
-import * as engine from './crypto-engine.js?v=20260923-sign1';
+import * as engine from './crypto-engine.js?v=20260924-pass-required';
 const $ = id => document.getElementById(id);
 let identity = null, recipient = null, trustedSenderSigningKey = null, saved = true, busy = false, epoch = 0;
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function sync() {
-    $('import-private').disabled = !$('private-file').files.length;
+    $('import-private').disabled = !$('private-file').files.length || !$('restore-password').value.length;
     $('export-public').disabled = !identity;
     $('export-private').disabled = !identity;
     const encryptBytes = new TextEncoder().encode($('encrypt-input').value).length;
@@ -125,30 +125,21 @@ $('import-private').addEventListener('click', () => {
         try {
             const text = await fileText(file, 65536);
             const trimmed = text.trim();
-            if (trimmed.startsWith('-----BEGIN PUBLIC KEY-----')) throw new Error('Ce fichier contient une clé publique. Choisissez votre clé privée pour déchiffrer.');
-            if (trimmed.startsWith('-----BEGIN ENCRYPTED PRIVATE KEY-----')) throw new Error('Ce fichier est un PEM privé chiffré, dont le format n’est pas encore pris en charge. La sauvegarde chiffrée attendue ici est le JSON créé par cette application.');
-            if (trimmed.startsWith('-----BEGIN RSA PRIVATE KEY-----')) throw new Error('Cette clé est au format PEM PKCS#1. Cette version accepte le PEM PKCS#8 « BEGIN PRIVATE KEY ».');
-            if (trimmed.startsWith('{')) {
-                let backup;
-                try { backup = JSON.parse(trimmed); } catch { throw new Error('Le fichier JSON est incomplet ou invalide.'); }
-                if (!backup || backup.type !== 'crypto-page-private-key') throw new Error('Ce JSON n’est pas une sauvegarde de clé privée de cette application.');
-                if (!password.length) throw new Error('Saisissez la phrase secrète de cette sauvegarde, puis cliquez à nouveau sur « Importer ma clé privée ».');
-            } else if (!trimmed.startsWith('-----BEGIN PRIVATE KEY-----')) {
-                throw new Error('Format non reconnu : choisissez une sauvegarde privée JSON ou une clé PEM « BEGIN PRIVATE KEY ».');
-            }
+            if (!password.length) throw new Error('La phrase secrète de la sauvegarde est obligatoire.');
+            if (trimmed.startsWith('-----BEGIN PUBLIC KEY-----')) throw new Error('Ce fichier contient une clé publique. Choisissez votre sauvegarde privée chiffrée pour déchiffrer.');
+            if (trimmed.startsWith('-----BEGIN')) throw new Error('Les clés privées PEM ne sont pas acceptées. Importez la sauvegarde JSON chiffrée créée par cette application.');
+            if (!trimmed.startsWith('{')) throw new Error('Format non reconnu : choisissez la sauvegarde privée JSON chiffrée créée par cette application.');
+            let backup;
+            try { backup = JSON.parse(trimmed); } catch { throw new Error('Le fichier JSON est incomplet ou invalide.'); }
+            if (!backup || backup.type !== 'crypto-page-private-key') throw new Error('Ce JSON n’est pas une sauvegarde de clé privée de cette application.');
+            if (backup.v !== 2) throw new Error('Format de sauvegarde non pris en charge. Seule la sauvegarde JSON v2 produite par l’interface est acceptée.');
             const restored = await engine.restorePrivate(text, password);
-            const signing = restored.signingPrivateKey
-                ? { signingPrivateKey: restored.signingPrivateKey, signingPublicKey: await engine.publicSigningFromPrivate(restored.signingPrivateKey) }
-                : await engine.generateSigningKeys();
+            const signing = { signingPrivateKey: restored.signingPrivateKey, signingPublicKey: await engine.publicSigningFromPrivate(restored.signingPrivateKey) };
             const pair = { ...restored, ...signing, publicKey: await engine.publicFromPrivate(restored.privateKey) };
-            await setIdentity(pair, generation, Boolean(restored.signingPrivateKey));
+            await setIdentity(pair, generation, true);
             $('private-file').value = '';
-            $('restore-feedback').textContent = restored.signingPrivateKey
-                ? 'Identité importée. Ouvrez « Déchiffrer » pour lire un message signé.'
-                : 'Clé RSA importée et nouvelle clé de signature créée. Téléchargez une nouvelle sauvegarde privée avant de fermer.';
-            status(restored.signingPrivateKey
-                ? 'Identité chargée localement, avec sa clé de signature.'
-                : 'Clé RSA chargée. Une nouvelle clé de signature locale a été créée.');
+            $('restore-feedback').textContent = 'Identité importée. Ouvrez « Déchiffrer » pour lire un message signé.';
+            status('Identité chargée localement, avec ses clés de chiffrement et de signature.');
         } catch (error) {
             if (generation === epoch) {
                 $('restore-feedback').textContent = `${error.message || 'Clé privée invalide.'} Le fichier reste sélectionné pour réessayer.${identity ? ' La clé précédente reste chargée.' : ''}`;
@@ -160,6 +151,7 @@ $('import-private').addEventListener('click', () => {
 $('restore-password').addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); $('import-private').click(); }
 });
+$('restore-password').addEventListener('input', sync);
 $('recipient-file').addEventListener('change', event => {
     const file = event.target.files[0]; event.target.value = ''; if (!file) return;
     recipient = null; $('recipient-state').textContent = 'Aucun destinataire chargé'; $('recipient-fingerprint').textContent = ''; $('encrypt-output').value = '';

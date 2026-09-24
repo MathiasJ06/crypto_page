@@ -61,11 +61,9 @@ const fixture = require('./keys-fixture.json');
   await page.locator('#private-file').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(privateText) });
   assert.equal(await page.locator('#my-state').textContent(), 'Aucune clé chargée');
   assert.equal(await page.locator('#private-file').evaluate(e => e.files.length), 1);
-  await page.locator('#import-private').click();
-  await page.waitForFunction(() => !document.getElementById('app').disabled);
-  assert.ok((await page.locator('#restore-feedback').textContent()).includes('Saisissez la phrase secrète'));
-  assert.equal(await page.locator('#private-file').evaluate(e => e.files.length), 1);
+  assert.equal(await page.locator('#import-private').isDisabled(), true, 'Import stays disabled until a phrase is entered');
   await page.locator('#restore-password').fill('Mauvaise phrase secrète');
+  assert.equal(await page.locator('#import-private').isDisabled(), false);
   await page.locator('#import-private').click();
   await page.waitForFunction(() => !document.getElementById('app').disabled);
   assert.ok((await page.locator('#restore-feedback').textContent()).includes('phrase secrète incorrecte'));
@@ -76,14 +74,18 @@ const fixture = require('./keys-fixture.json');
   assert.equal(await page.locator('#my-fingerprint').textContent(), fp);
   // Wrong file gets an actionable message without replacing the successfully loaded identity.
   await page.locator('#private-file').setInputFiles({ name: 'public.pem', mimeType: 'text/plain', buffer: Buffer.from(publicText) });
+  await page.locator('#restore-password').fill('Phrase quelconque');
   await page.locator('#import-private').click();
   await page.waitForFunction(() => !document.getElementById('app').disabled);
   assert.ok((await page.locator('#restore-feedback').textContent()).includes('clé publique'));
   assert.equal(await page.locator('#my-fingerprint').textContent(), fp);
-  // Independently generated PKCS#8 key remains importable.
+  // Unencrypted private PEM is refused; private-key imports always require an encrypted app backup.
   await page.locator('#private-file').setInputFiles({ name: 'old.key', mimeType: 'text/plain', buffer: Buffer.from(fixture.private) });
+  await page.locator('#restore-password').fill('Phrase quelconque');
   await page.locator('#import-private').click();
-  await page.waitForFunction(() => document.getElementById('my-state').textContent.includes('2048'));
+  await page.waitForFunction(() => !document.getElementById('app').disabled);
+  assert.ok((await page.locator('#restore-feedback').textContent()).includes('PEM ne sont pas acceptées'));
+  assert.equal(await page.locator('#my-fingerprint').textContent(), fp);
   await page.locator('[data-panel=decrypt]').click();
   await page.locator('#decrypt-input').fill('invalid');
   await page.locator('#decrypt').click();

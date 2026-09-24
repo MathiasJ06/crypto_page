@@ -12,23 +12,13 @@ Aucun serveur Python n'est nécessaire pour les visiteurs. GitHub fournit les fi
 
 Les changements sont préparés pour publication ; le site public reste sur l'ancienne version tant que les nouveaux fichiers n'ont pas été envoyés au dépôt et déployés.
 
-## Démarrer localement (facultatif)
-
-Servez ce dossier avec un serveur statique. Python sert uniquement les fichiers ; il ne traite pas les clés ni les messages :
-
-```sh
-python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-Ouvrez **http://localhost:8000**. N'utilisez pas l'ouverture directe `file://` : les modules JavaScript peuvent être bloqués. Un hébergement statique HTTPS (dont GitHub Pages) convient aussi ; HTTP distant n'active pas Web Crypto.
-
-Une fois la page chargée, elle fonctionne sans connexion réseau. L'interface télécharge seulement `index.html`, `style.css`, `script.js` et `crypto-engine.js` au démarrage. Elle n'effectue aucune requête lors de la saisie, génération, importation, sauvegarde, encryption ou décryption. Les téléchargements sont des fichiers Blob créés localement.
+L'utilisation prévue est directement dans le navigateur, à l'adresse GitHub Pages ci-dessus. Aucun lancement local avec Python n'est nécessaire. Après le chargement de la page, les opérations sur les clés et les messages s'effectuent dans le navigateur, sans requête réseau supplémentaire.
 
 ## Utilisation
 
 1. **Mes clés** : générez votre identité, composée d'une paire RSA de chiffrement et d'une paire ECDSA de signature. Téléchargez l'identité publique à partager et la sauvegarde privée protégée par une phrase secrète longue et unique (12 caractères minimum). Vérifiez que la sauvegarde est bien enregistrée. La phrase n'est pas récupérable par un service.
 2. **Chiffrer** : importez l'identité publique de votre destinataire (ou son ancienne clé publique RSA). Comparez l'empreinte complète avec lui par un autre canal. Saisissez le message, chiffrez, puis copiez ou téléchargez le résultat chiffré pour le transmettre. L'application le signe avec votre clé privée de signature, qui ne quitte jamais l'appareil.
-3. **Déchiffrer** : sélectionnez votre sauvegarde privée dans « Mes clés », saisissez sa phrase, puis cliquez sur « Importer ma clé privée ». Collez/importez ensuite le message reçu et déchiffrez. La page vérifie la signature et affiche l'empreinte de la clé signataire. Pour vérifier qu'elle appartient bien à la personne attendue, chargez aussi son identité publique ou comparez l'empreinte par un canal sûr. Un échec conserve le fichier sélectionné pour réessayer.
+3. **Déchiffrer** : sélectionnez votre sauvegarde privée chiffrée dans « Mes clés », saisissez obligatoirement sa phrase secrète, puis cliquez sur « Importer ma clé privée ». Collez/importez ensuite le message reçu et déchiffrez. La page vérifie la signature et affiche l'empreinte de la clé signataire. Pour vérifier qu'elle appartient bien à la personne attendue, chargez aussi son identité publique ou comparez l'empreinte par un canal sûr. Un échec conserve le fichier sélectionné pour réessayer.
 4. **Verrouiller et effacer** : retire les références aux clés de la session et vide les champs de l'interface. Les téléchargements et le presse-papiers ne sont pas effacés. Une fermeture/recharge supprime également l'état de l'application. Une sortie avec une clé nouvellement générée sans téléchargement de sauvegarde demande confirmation si le navigateur le permet.
 
 Le destinataire n'a pas à transmettre sa clé privée. L'application n'envoie pas elle-même les messages. Les espaces et les retours à la ligne sont conservés exactement. La taille maximale d'un texte clair est 2 Mio en UTF-8.
@@ -65,15 +55,11 @@ L'identité publique JSON contient la clé publique RSA PEM et la clé publique 
 
 La sauvegarde privée JSON v2 chiffre ensemble les deux clés privées PKCS#8 avec PBKDF2-HMAC-SHA256 (600 000 itérations, sel aléatoire de 16 octets) et AES-256-GCM (nonce aléatoire de 12 octets). Les données authentifiées sont la chaîne UTF-8 `crypto-page/private-identity/v2/PBKDF2-SHA256/600000/A256GCM`.
 
-### Anciennes sauvegardes privées v1
+Les clés privées ne sont exportées qu'au sein de cette sauvegarde chiffrée. L'interface et le moteur n'acceptent que la version JSON v2 générée par le bouton « Télécharger la clé privée » ; les versions antérieures et les PEM privés ne sont pas pris en charge.
 
-Format JSON propre à cette application, et non PEM PKCS#8 chiffré standard : PBKDF2-HMAC-SHA256 (600 000 itérations, sel aléatoire de 16 octets) dérive une clé AES-256-GCM. Nonce aléatoire de 12 octets. Le contenu protégé est le PKCS#8 DER. Les données authentifiées sont la chaîne UTF-8 `crypto-page/private-key/v1/PBKDF2-SHA256/600000/A256GCM`. Les paramètres importés sont strictement bornés et validés.
+### Limites d’import et compatibilité
 
-Les sauvegardes privées v1 sont toujours importables ; elles ne contiennent qu'une clé RSA. À leur chargement, une nouvelle paire ECDSA est créée : téléchargez une nouvelle sauvegarde v2 pour la conserver. Les clés privées sont exportables en mémoire afin de permettre leur sauvegarde ; aucun export privé non chiffré n'est proposé dans l'interface.
-
-### Import des clés antérieures
-
-- Import des identités publiques JSON, des clés publiques SPKI PEM et des clés privées PKCS#8 PEM **non chiffrées** (`.pem`, `.key` ou `.txt`). La clé publique est dérivée automatiquement de la clé privée importée. Un ancien PEM RSA reçoit une nouvelle clé de signature ; sauvegardez l'identité mise à niveau avant de fermer l'onglet.
+- Les clés privées PEM, chiffrées ou non, et les sauvegardes privées JSON antérieures à la v2 sont refusées. Les clés publiques PEM peuvent toujours être importées pour chiffrer vers un destinataire.
 - Les anciens messages ne sont pas pris en charge. Tous les correspondants doivent utiliser cette version pour lire les nouveaux messages.
 - Les fichiers Python du dossier `crypto/` sont conservés comme référence historique. Ils ne sont jamais chargés ni exécutés par l'application.
 

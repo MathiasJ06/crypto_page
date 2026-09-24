@@ -89,7 +89,7 @@ test('protected backup restores identity and rejects wrong passphrase', async ()
     await assert.rejects(e.restorePrivate(backup, 'wrong passphrase'));
     assert.equal((await e.decrypt(restored.privateKey, token)).message, 'message de contrôle');
 });
-test('legacy encrypted RSA-only private backup remains importable', async () => {
+test('legacy encrypted RSA-only v1 private backup is rejected', async () => {
     const password = 'Phrase secrète historique de test';
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -99,9 +99,7 @@ test('legacy encrypted RSA-only private backup remains importable', async () => 
     const aad = new TextEncoder().encode('crypto-page/private-key/v1/PBKDF2-SHA256/600000/A256GCM');
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad }, aes, pkcs8));
     const backup = JSON.stringify({ type: 'crypto-page-private-key', v: 1, kdf: 'PBKDF2-SHA256', iterations: 600000, alg: 'A256GCM', salt: e.encode(salt), iv: e.encode(iv), ct: e.encode(ct) });
-    const restored = await e.restorePrivate(backup, password);
-    assert.equal(await e.fingerprint(await e.publicFromPrivate(restored.privateKey)), await e.fingerprint(publicKey));
-    assert.equal(restored.signingPrivateKey, null);
+    await assert.rejects(e.restorePrivate(backup, password));
 });
 test('backup rejects weak password, modified metadata, ciphertext and hostile work factor', async () => {
     await assert.rejects(e.protectPrivate(pair, 'short'));
@@ -112,10 +110,9 @@ test('backup rejects weak password, modified metadata, ciphertext and hostile wo
     const correctKid = await e.fingerprint(pair.publicKey);
     assert.equal(await e.fingerprint(await e.publicFromPrivate((await e.restorePrivate(JSON.stringify(o), phrase)).privateKey)), correctKid);
 });
-test('old unencrypted private PEM can be restored', async () => {
-    const restored = await e.restorePrivate(fixture.private, '');
-    assert.equal(await e.fingerprint(await e.publicFromPrivate(restored.privateKey)), await e.fingerprint(publicKey));
-    assert.equal(restored.signingPrivateKey, null);
+test('private backups cannot be restored without a passphrase and raw PEM is rejected', async () => {
+    await assert.rejects(e.restorePrivate(JSON.stringify({}), ''));
+    await assert.rejects(e.restorePrivate(fixture.private, phrase));
 });
 test('invalid, non-RSA and short RSA keys are rejected', async () => {
     await assert.rejects(e.importPublic('-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----'));
@@ -130,4 +127,14 @@ test('HTML blocks network connections and only loads local code', async () => {
     assert.ok(html.includes("form-action 'none'"));
     assert.ok(html.includes("worker-src 'none'"));
     assert.ok(!/<script[^>]*src=["']https?:/i.test(html));
+});
+test('private-key import requires a passphrase and only accepts encrypted JSON backups', async () => {
+    const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+    const script = await readFile(new URL('../script.js', import.meta.url), 'utf8');
+    assert.match(html, /id="restore-password"[^>]*required/);
+    assert.match(html, /Sauvegarde de clé privée chiffrée/);
+    assert.match(html, /phrase secrète de la sauvegarde \(obligatoire\)/i);
+    assert.match(script, /!\$\('restore-password'\)\.value\.length/);
+    assert.match(script, /Les clés privées PEM ne sont pas acceptées/);
+    assert.match(script, /backup\.v !== 2/);
 });

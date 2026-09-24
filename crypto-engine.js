@@ -154,7 +154,6 @@ async function passwordKey(password, salt, usages) {
     const base = await crypto.subtle.importKey('raw', te.encode(password), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: rounds }, base, { name: 'AES-GCM', length: 256 }, false, usages);
 }
-const backupAADv1 = te.encode('crypto-page/private-key/v1/PBKDF2-SHA256/600000/A256GCM');
 const backupAADv2 = te.encode('crypto-page/private-identity/v2/PBKDF2-SHA256/600000/A256GCM');
 export async function protectPrivate(identity, password) {
     if (password.length < 12) throw new Error('Choisis une phrase secrète d’au moins 12 caractères.');
@@ -170,34 +169,28 @@ export async function protectPrivate(identity, password) {
     } finally { raw.fill(0); signingRaw.fill(0); }
 }
 export async function restorePrivate(text, password) {
-    if (text.trim().startsWith('-----BEGIN PRIVATE KEY-----')) return { privateKey: await importPrivate(text), signingPrivateKey: null };
+    if (typeof password !== 'string' || password.length === 0) throw new Error('La phrase secrète de la sauvegarde est obligatoire.');
     try {
         if (text.length > 65536) fail();
         const o = parse(text);
-        if (o.type !== 'crypto-page-private-key' || ![1, 2].includes(o.v) || o.kdf !== 'PBKDF2-SHA256' || o.iterations !== rounds || o.alg !== 'A256GCM') fail();
+        if (o.type !== 'crypto-page-private-key' || o.v !== 2 || o.kdf !== 'PBKDF2-SHA256' || o.iterations !== rounds || o.alg !== 'A256GCM') fail();
         const salt = decode(o.salt), iv = decode(o.iv);
         if (salt.length !== 16 || iv.length !== 12) fail();
         const aes = await passwordKey(password, salt, ['decrypt']);
-        const raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: o.v === 1 ? backupAADv1 : backupAADv2 }, aes, decode(o.ct)));
-        let encryptionRaw = raw;
-        let signingRaw = null;
+        const raw = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: backupAADv2 }, aes, decode(o.ct)));
+        let encryptionRaw, signingRaw;
         try {
-            if (o.v === 2) {
-                const payload = JSON.parse(td.decode(raw));
-                encryptionRaw = decode(payload.encryption);
-                signingRaw = decode(payload.signing);
-            }
+            const payload = JSON.parse(td.decode(raw));
+            encryptionRaw = decode(payload.encryption);
+            signingRaw = decode(payload.signing);
             const privateKey = checkRSA(await crypto.subtle.importKey('pkcs8', encryptionRaw, rsa, true, ['decrypt']));
-            if (o.v === 1 && Object.hasOwn(o, 'kid') && await fingerprint(await publicFromPrivate(privateKey)) !== o.kid) fail();
-            const signingPrivateKey = signingRaw
-                ? await crypto.subtle.importKey('pkcs8', signingRaw, ecdsa, true, ['sign'])
-                : null;
-            if (signingPrivateKey && (signingPrivateKey.algorithm.name !== 'ECDSA' || signingPrivateKey.algorithm.namedCurve !== 'P-256')) fail();
+            const signingPrivateKey = await crypto.subtle.importKey('pkcs8', signingRaw, ecdsa, true, ['sign']);
+            if (signingPrivateKey.algorithm.name !== 'ECDSA' || signingPrivateKey.algorithm.namedCurve !== 'P-256') fail();
             return { privateKey, signingPrivateKey };
         }
         finally {
             raw.fill(0);
-            if (encryptionRaw !== raw) encryptionRaw.fill(0);
+            encryptionRaw?.fill(0);
             signingRaw?.fill(0);
         }
     } catch { throw new Error('Sauvegarde invalide ou phrase secrète incorrecte.'); }

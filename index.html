@@ -8,7 +8,7 @@
   <title>ChiffR · Chiffrement local</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
-  <script type="module" src="script.js?v=20260923-sign1"></script>
+  <script type="module" src="script.js?v=20260924-pass-required"></script>
 </head>
 <body>
 <main>
@@ -38,11 +38,11 @@
         <button id="key-tab-create" type="button" role="tab" aria-controls="key-create-panel" aria-selected="false" data-key-tab="create">Créer mes clés</button>
       </nav>
       <section id="key-load-panel" role="tabpanel" aria-labelledby="key-tab-load" data-key-panel="load">
-        <article class="restore"><h3>Charge ta clée privée existante</h3><p>Importe ta clé privée, saisis sa phrase secrète si elle est chiffrée, puis clique sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
-          <label for="private-file">Fichier de clé privée</label><input id="private-file" type="file" accept=".json,.pem,.key,.txt">
-          <label for="restore-password">Phrase secrète de la sauvegarde (inutile pour un ancien PEM non chiffré)</label><input id="restore-password" type="password" autocomplete="off" spellcheck="false">
+        <article class="restore"><h3>Charge ta clé privée existante</h3><p>Importe une sauvegarde privée protégée par phrase secrète, saisis cette phrase, puis clique sur « Importer ma clé privée ». La clé publique correspondante sera retrouvée automatiquement.</p>
+          <label for="private-file">Sauvegarde de clé privée chiffrée</label><input id="private-file" type="file" accept=".json,application/json">
+          <label for="restore-password">Phrase secrète de la sauvegarde (obligatoire)</label><input id="restore-password" type="password" required autocomplete="off" spellcheck="false">
           <div class="actions"><button id="import-private" class="primary" type="button" disabled>Importer ma clé privée</button></div>
-          <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Formats acceptés : sauvegarde JSON de cette application ou clé PEM « BEGIN PRIVATE KEY ».</p>
+          <p id="restore-feedback" role="status" aria-live="polite">Aucun fichier sélectionné. Seules les sauvegardes JSON chiffrées de cette application sont acceptées. Les clés privées PEM non chiffrées ne sont pas importées.</p>
         </article>
       </section>
       <section id="key-create-panel" role="tabpanel" aria-labelledby="key-tab-create" data-key-panel="create" hidden>
